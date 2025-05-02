@@ -6,8 +6,11 @@
   <title>Domain Checker</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/npm/gridjs/dist/theme/mermaid.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/gridjs/dist/gridjs.umd.js"></script>
+  <!-- DataTables CSS and jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <!-- DataTables JS -->
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 </head>
 <body class="h-screen">
   <div class="flex h-full">
@@ -61,7 +64,21 @@
     </div>
     <!-- Results Panel -->
     <div class="w-1/2 p-6 overflow-auto">
-      <div id="grid" class="mt-6"></div>
+      <!-- Live Scrollable Table -->
+      <div id="results-container" class="mt-6 hidden">
+        <div class="overflow-y-auto h-96 border border-base-300 rounded-lg">
+          <table id="results-table" class="table table-zebra w-full">
+            <thead class="sticky top-0 bg-base-200 z-10">
+              <tr>
+                <th>Domain</th>
+                <th>Status</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
   <script src="{{ url_for('static', filename='script.js') }}"></script>

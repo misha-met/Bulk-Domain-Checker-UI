@@ -1,7 +1,9 @@
 // Domain check flow (default light mode, dark mode removed)
 const checkBtn = document.getElementById('check-btn');
 const loader = document.getElementById('loader');
-const gridContainer = document.getElementById('grid');
+const resultsContainer = document.getElementById('results-container');
+// DataTable instance for live-updating table
+let dataTable;
 
 checkBtn.addEventListener('click', async () => {
   const raw = document.getElementById('domains-input').value;
@@ -11,7 +13,22 @@ checkBtn.addEventListener('click', async () => {
   // UI state
   checkBtn.disabled = true;
   loader.classList.remove('hidden');
-  gridContainer.innerHTML = '';
+  // Reset DataTable if exists
+  if (dataTable) {
+    dataTable.clear().destroy();
+  }
+  resultsContainer.classList.remove('hidden'); // Show the table container
+  // Initialize DataTable
+  dataTable = $('#results-table').DataTable({
+    scrollY: '300px',
+    scrollCollapse: true,
+    paging: false,
+    info: false,
+    searching: false,
+    ordering: true,
+    autoWidth: false,
+  });
+
   const logPanel = document.getElementById('log-panel');
   const logsContainer = document.getElementById('logs');
   logsContainer.innerHTML = '';
@@ -60,7 +77,7 @@ checkBtn.addEventListener('click', async () => {
       body: JSON.stringify({ domains })
     });
     const data = await res.json();
-    // sequential log animation
+    // sequential log animation AND live table update
     for (let i = 0; i < data.length; i++) {
       const item = data[i];
       const lineStart = document.createElement('div');
@@ -73,6 +90,15 @@ checkBtn.addEventListener('click', async () => {
       lineResult.textContent = `${item.domain}: ${statusText}`;
       logsContainer.appendChild(lineResult);
       logsContainer.scrollTop = logsContainer.scrollHeight;
+
+      // --- Add row to live table --- START
+      // Add row via DataTables API for live update
+      dataTable.row.add([
+        item.domain,
+        `<span class="badge ${item.ok ? 'badge-success' : 'badge-error'}">${item.ok ? 'Online' : 'Offline'}</span>`,
+        item.detail
+      ]).draw(false);
+      // --- Add row to live table --- END
 
       // update dashboard metrics
       checkedCount++;
@@ -101,27 +127,20 @@ checkBtn.addEventListener('click', async () => {
     logsContainer.appendChild(doneLine);
     logsContainer.scrollTop = logsContainer.scrollHeight;
 
-    // render results using Grid.js
-    new gridjs.Grid({
-      columns: ['Domain', 'Status', 'Detail'],
-      data: data.map(item => [
-        item.domain,
-        gridjs.html(`<span class="badge ${item.ok ? 'badge-success' : 'badge-error'}">${item.ok ? 'Online' : 'Offline'}</span>`),
-        item.detail
-      ]),
-      pagination: { enabled: true, limit: 10 },
-      sort: true,
-      style: {
-        table: { 'width': '100%' },
-        th: { 'background-color': 'var(--b2)', 'color': 'var(--p2)' },
-        td: { 'background-color': 'var(--b1)', 'color': 'var(--p2)' }
-      }
-    }).render(gridContainer);
+    // Live DataTable rows have been added; no final render needed
+
   } catch (err) {
-    gridContainer.innerHTML = `<p class="text-error">Error: ${err.message}</p>`;
+    // Display error somewhere appropriate, maybe above the (now empty) table
+    resultsContainer.insertAdjacentHTML('beforebegin', `<p id="fetch-error" class="text-error mb-2">Error fetching results: ${err.message}</p>`);
+    // Clear any potential partial results if fetch failed completely
+    if (dataTable) {
+      dataTable.clear().destroy();
+    }
   } finally {
     loader.classList.add('hidden');
     checkBtn.disabled = false;
+    // Clear any previous error message on new run
+    document.getElementById('fetch-error')?.remove();
   }
 });
 
