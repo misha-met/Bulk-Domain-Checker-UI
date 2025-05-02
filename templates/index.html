@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Domain Checker</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/gridjs/dist/theme/mermaid.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/gridjs/dist/gridjs.umd.js"></script>
+</head>
+<body class="h-screen">
+  <div class="flex h-full">
+    <!-- Input Panel -->
+    <div class="w-1/2 p-6 overflow-auto">
+      <!-- Dashboard container (visible by default) -->
+      <div id="dashboard-container" class="mb-4">
+        <div id="dashboard" class="stats stats-vertical lg:stats-horizontal shadow mb-2">
+          <div class="stat">
+            <div class="stat-title">Checked</div>
+            <div class="stat-value text-primary" id="counter-checked">0</div>
+            <div class="stat-desc">of <span id="counter-total">0</span></div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">Online</div>
+            <div class="stat-value text-success" id="counter-online">0</div>
+            <div class="stat-desc">reachable domains</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">Failed</div>
+            <div class="stat-value text-error" id="counter-failed">0</div>
+            <div class="stat-desc">unreachable domains</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">Elapsed</div>
+            <div class="stat-value text-secondary" id="counter-elapsed">0.0s</div>
+            <div class="stat-desc">time taken</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">Speed</div>
+            <div class="stat-value text-info" id="counter-speed">0.0</div>
+            <div class="stat-desc">domains/s</div>
+          </div>
+        </div>
+      </div>
+      <textarea id="domains-input" placeholder="Enter domains, one per line" class="textarea w-full textarea-bordered mb-4" rows="5"></textarea>
+      <div class="flex items-center gap-2 mb-4">
+        <button id="check-btn" class="btn btn-primary">Check Domains</button>
+        <div id="loader" class="hidden items-center gap-2">
+          <span class="loading loading-spinner text-primary"></span>
+          <span>Checking...</span>
+        </div>
+      </div>
+      <!-- Terminal-style Log Panel -->
+      <div id="log-panel" class="hidden mt-4 rounded-lg border border-gray-600 overflow-hidden">
+        <div class="bg-gray-800 text-green-400 px-3 py-1 text-sm font-semibold">
+          domain-checker@localhost:~$ <span class="text-gray-400">Terminal Log</span>
+        </div>
+        <div id="logs" class="bg-black text-green-300 px-3 py-2 h-40 overflow-y-auto text-xs space-y-1"></div>
+      </div>
+    </div>
+    <!-- Results Panel -->
+    <div class="w-1/2 p-6 overflow-auto">
+      <div id="grid" class="mt-6"></div>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
