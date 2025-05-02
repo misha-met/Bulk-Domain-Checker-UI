@@ -71,12 +71,4 @@ When you initiate a domain check, a log panel appears below the controls and sim
 - After all checks are initiated, a final message is displayed.
 - The log panel auto-scrolls to always show the latest entries.
 
-This provides a more engaging loading experience while your domains are being processed.
 
-## Security
-
-**Important:** Do not commit sensitive information to your Git repository.
-
-- **Domain Lists:** If your `domains.txt` file contains private or internal domain names, add it to your `.gitignore` file to prevent accidental commits.
-- **Log Files:** The default log file (`domain_check.log`) or any custom log files might contain information you don't want public. Ensure log files are included in `.gitignore`.
-- **Environment Variables:** If you extend this application to use API keys or other secrets, store them in environment variables or a `.env` file (and add `.env` to `.gitignore`), do not hardcode them in the source.
