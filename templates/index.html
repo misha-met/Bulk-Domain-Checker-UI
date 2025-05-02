@@ -16,57 +16,31 @@
       color: #EAEAEA; /* Light gray text */
     }
 
-    /* Containers & Cards */
-    #dashboard-container .stats,
-    #log-panel,
-    #results-container > div /* Table wrapper */ {
-      background-color: #111111; /* Slightly lighter dark */
-      border: 1px solid #2a2a2a; /* Subtle border */
-      border-radius: 0.5rem; /* Rounded corners */
-      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); /* Subtle shadow */
+    /* Main Container */
+    .main-container { /* Replaces direct body styling for padding */
+        padding: 2rem; /* Add padding like container mx-auto py-8 */
     }
 
     /* Inputs & Buttons */
     .textarea,
     .btn {
-      background-color: #1f1f1f; /* Darker input background */
+      background-color: #1f1f1f;
       color: #EAEAEA;
       border: 1px solid #333333;
-      border-radius: 0.375rem; /* Slightly less rounded */
+      border-radius: 0.375rem;
     }
-    .btn:hover {
-      background-color: #2a2a2a;
-    }
+    .btn:hover { background-color: #2a2a2a; }
     .btn-primary {
-      background-color: #ffffff; /* White button */
-      color: #000000; /* Black text */
+      background-color: #ffffff;
+      color: #000000;
       border-color: #ffffff;
     }
-    .btn-primary:hover {
-      background-color: #f0f0f0;
-      border-color: #f0f0f0;
-    }
-
-    /* Stats Dashboard */
-    .stat {
-      border-color: #2a2a2a; /* Match container border */
-    }
-    .stat-title {
-      color: #a0a0a0; /* Muted title color */
-    }
-    .stat-value {
-      color: #ffffff; /* White value */
-    }
-    .stat-value.text-primary { color: #60a5fa; } /* Adjust primary color if needed */
-    .stat-value.text-success { color: #4ade80; } /* Vibrant green */
-    .stat-value.text-error   { color: #f87171; } /* Vibrant red */
-    .stat-value.text-secondary { color: #93c5fd; }
-    .stat-value.text-info    { color: #7dd3fc; }
-    .stat-desc {
-      color: #71717a; /* Muted description */
-    }
+    .btn-primary:hover { background-color: #f0f0f0; border-color: #f0f0f0; }
 
     /* DataTables Dark Style */
+    .dataTables_wrapper {
+      width: 100%; /* Ensure wrapper fits container */
+    }
     table.dataTable {
       color: #EAEAEA;
       border-collapse: separate; /* Needed for spacing */
@@ -84,9 +58,12 @@
       color: #a0a0a0; /* Muted header text */
       font-weight: 500;
       border-bottom: none;
+      padding: 0.4rem 0.6rem; /* Further reduced padding */
+      font-size: 0.8rem; /* Slightly smaller font */
     }
     table.dataTable tbody td {
-      padding: 0.75rem 1rem; /* Adjust padding */
+      padding: 0.4rem 0.6rem; /* Further reduced padding */
+      font-size: 0.8rem; /* Slightly smaller font */
       border-bottom: 1px solid #1f1f1f; /* Subtle row separator */
     }
     /* Zebra striping */
@@ -110,16 +87,25 @@
     /* Terminal Panel */
     #log-panel {
       border-color: #2a2a2a;
+      background-color: #111111;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
     }
-    #log-panel .bg-gray-800 { /* Terminal Header */
+    #log-panel .terminal-header {
       background-color: #111111;
       color: #a0a0a0;
       border-bottom: 1px solid #2a2a2a;
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
     }
-    #logs { /* Terminal Body */
+    #logs {
       background-color: #000000;
       color: #4ade80; /* Use vibrant green for logs */
       font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+      padding: 0.75rem 1rem;
+      height: 8rem; /* Reduced height */
+      overflow-y: auto;
+      font-size: 0.75rem;
     }
 
     /* Remove DataTables internal borders */
@@ -129,7 +115,6 @@
     .dataTables_scrollHead, .dataTables_scrollBody {
       border: none !important; /* Keep borders removed */
     }
-    /* Override specific row borders if needed */
     table.dataTable tbody td {
        border-bottom: 1px solid #1f1f1f !important; /* Re-apply subtle row separator */
     }
@@ -137,76 +122,198 @@
        border-bottom: 1px solid #2a2a2a !important; /* Re-apply header separator */
     }
 
+    /* New Dashboard Styles */
+    .text-foreground { color: #EAEAEA; } /* Match body text */
+    .text-muted-foreground { color: #a0a0a0; }
+    .badge-outline { border-color: #333333; color: #a0a0a0; }
+    .stat-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1rem; /* p-4, reduced from p-6 */
+      border: 1px solid #2a2a2a; /* border-border */
+      border-radius: 0.375rem; /* rounded-md */
+      background-color: #111111; /* bg-card */
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+      transition: box-shadow 0.2s ease-in-out;
+    }
+    .stat-card:hover {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+    }
+    .stat-card-icon {
+      width: 1.25rem; /* w-5 */
+      height: 1.25rem; /* h-5 */
+      margin-bottom: 1.5rem; /* mb-6 */
+    }
+    .stat-card-icon.text-primary { color: #60a5fa; } /* Blue */
+    .stat-card-icon.text-destructive { color: #f87171; } /* Red */
+    .stat-card-icon.text-secondary { color: #93c5fd; } /* Lighter Blue */
+    .stat-card-icon.text-info { color: #7dd3fc; } /* Cyan */
+
+    .stat-card-value {
+      font-size: 1.5rem; /* text-2xl, reduced from text-3xl */
+      line-height: 2rem;
+      letter-spacing: -0.025em; /* tracking-tighter */
+      font-weight: 500; /* font-medium */
+      color: #ffffff; /* Brighter value */
+      display: flex;
+      flex-direction: row;
+      gap: 1rem; /* gap-4 */
+      align-items: flex-end;
+    }
+    .stat-card-additional-info {
+      font-size: 0.875rem; /* text-sm */
+      line-height: 1.25rem;
+      color: #a0a0a0; /* text-muted-foreground */
+      letter-spacing: normal; /* tracking-normal */
+    }
+    .stat-card-text {
+      margin-top: 0.25rem; /* mt-1 */
+      /* space-y-1 handled by individual margins/paddings */
+    }
+    .stat-card-title {
+      font-size: 0.75rem; /* text-xs, reduced from text-sm */
+      line-height: 1rem;
+      font-weight: 500; /* font-medium */
+      color: #EAEAEA; /* text-foreground */
+      margin-bottom: 0.25rem;
+    }
+    .stat-card-description {
+      font-size: 0.75rem; /* text-xs */
+      line-height: 1rem;
+      color: #a0a0a0; /* text-muted-foreground */
+    }
   </style>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 </head>
-<body class="h-screen">
-  <div class="flex h-full">
-    <!-- Input Panel -->
-    <div class="w-1/2 p-6 overflow-auto">
-      <!-- Dashboard container (visible by default) -->
-      <div id="dashboard-container" class="mb-4">
-        <div id="dashboard" class="stats stats-vertical lg:stats-horizontal shadow mb-2">
-          <div class="stat">
-            <div class="stat-title">Checked</div>
-            <div class="stat-value text-primary" id="counter-checked">0</div>
-            <div class="stat-desc">of <span id="counter-total">0</span></div>
+<body class="h-screen bg-black">
+  <!-- Main container with padding and max-width -->
+  <div class="max-w-7xl mx-auto p-2 lg:p-4"> <!-- Reduced padding -->
+
+    <!-- New Dashboard container -->
+    <div id="new-dashboard-container" class="mb-4"> <!-- Reduced bottom margin -->
+      <div class="flex flex-col gap-1 mb-3"> <!-- Reduced gap and bottom margin -->
+        <h2 class="text-xl tracking-tight font-semibold text-foreground"> <!-- Reduced font size -->
+          Domain Checker Status
+        </h2>
+        <p class="text-xs text-muted-foreground"> <!-- Reduced font size -->
+          Real-time statistics for your domain checking operation
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3"> <!-- Reduced gap -->
+        <!-- Stat Card: Checked -->
+        <div class="stat-card">
+          <div class="stat-card-icon text-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           </div>
-          <div class="stat">
-            <div class="stat-title">Online</div>
-            <div class="stat-value text-success" id="counter-online">0</div>
-            <div class="stat-desc">reachable domains</div>
-          </div>
-          <div class="stat">
-            <div class="stat-title">Failed</div>
-            <div class="stat-value text-error" id="counter-failed">0</div>
-            <div class="stat-desc">unreachable domains</div>
-          </div>
-          <div class="stat">
-            <div class="stat-title">Elapsed</div>
-            <div class="stat-value text-secondary" id="counter-elapsed">0.0s</div>
-            <div class="stat-desc">time taken</div>
-          </div>
-          <div class="stat">
-            <div class="stat-title">Speed</div>
-            <div class="stat-value text-info" id="counter-speed">0.0</div>
-            <div class="stat-desc">domains/s</div>
+          <h2 class="stat-card-value">
+            <span id="stat-checked-value">0</span>
+            <span id="stat-checked-percent" class="stat-card-additional-info">0%</span>
+          </h2>
+          <div class="stat-card-text">
+            <p class="stat-card-title">Checked Domains</p>
+            <p class="stat-card-description">Out of <span id="stat-total-value">0</span> total domains</p>
           </div>
         </div>
-      </div>
-      <textarea id="domains-input" placeholder="Enter domains, one per line" class="textarea w-full textarea-bordered mb-4" rows="5"></textarea>
-      <div class="mb-4">
-        <button id="check-btn" class="btn btn-primary">Check Domains</button>
-      </div>
-      <!-- Terminal-style Log Panel -->
-      <div id="log-panel" class="hidden mt-4 rounded-lg border border-gray-600 overflow-hidden">
-        <div class="bg-gray-800 text-green-400 px-3 py-1 text-sm font-semibold">
-          domain-checker@localhost:~$ <span class="text-gray-400">Terminal Log</span>
+
+        <!-- Stat Card: Online -->
+        <div class="stat-card">
+          <div class="stat-card-icon text-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <h2 class="stat-card-value">
+            <span id="stat-online-value">0</span>
+            <span id="stat-online-percent" class="stat-card-additional-info">0%</span>
+          </h2>
+          <div class="stat-card-text">
+            <p class="stat-card-title">Online Domains</p>
+            <p class="stat-card-description">Domains successfully verified</p>
+          </div>
         </div>
-        <div id="logs" class="bg-black text-green-300 px-3 py-2 h-40 overflow-y-auto text-xs space-y-1"></div>
+
+        <!-- Stat Card: Failed -->
+        <div class="stat-card">
+          <div class="stat-card-icon text-destructive">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+          </div>
+          <h2 class="stat-card-value">
+            <span id="stat-failed-value">0</span>
+            <span id="stat-failed-percent" class="stat-card-additional-info">0%</span>
+          </h2>
+          <div class="stat-card-text">
+            <p class="stat-card-title">Failed Domains</p>
+            <p class="stat-card-description">Domains that failed verification</p>
+          </div>
+        </div>
+
+        <!-- Stat Card: Elapsed -->
+        <div class="stat-card">
+          <div class="stat-card-icon text-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <h2 class="stat-card-value">
+            <span id="stat-elapsed-value">0.0s</span>
+          </h2>
+          <div class="stat-card-text">
+            <p class="stat-card-title">Elapsed Time</p>
+            <p class="stat-card-description">Total time since operation started</p>
+          </div>
+        </div>
+
+        <!-- Stat Card: Speed -->
+        <div class="stat-card">
+          <div class="stat-card-icon text-info">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.05A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.05A1 1 0 0 0 11 14z"/></svg>
+          </div>
+          <h2 class="stat-card-value">
+            <span id="stat-speed-value">0.0</span>
+          </h2>
+          <div class="stat-card-text">
+            <p class="stat-card-title">Speed</p>
+            <p class="stat-card-description">Domains checked per second</p>
+          </div>
+        </div>
       </div>
     </div>
-    <!-- Results Panel -->
-    <div class="w-1/2 p-6 overflow-auto">
-      <!-- Live Scrollable Table -->
-      <div id="results-container" class="mt-6 hidden">
-        <div class="overflow-y-auto h-96 rounded-lg">
+
+    <!-- Flex container for Input/Logs and Results columns -->
+    <div class="flex flex-col lg:flex-row h-full gap-2"> <!-- Reduced gap -->
+      <!-- Input Panel (Left Column) -->
+      <div class="w-full lg:w-1/2 p-4 border border-gray-700 rounded-md bg-black overflow-auto"> <!-- Reduced padding, set bg to black -->
+        <textarea id="domains-input" placeholder="Enter domains, one per line" class="textarea w-full textarea-bordered mb-3" rows="4"></textarea> <!-- Reduced margin and rows -->
+
+        <button id="check-btn" class="btn btn-primary w-full">Check Domains</button>
+
+        <!-- Log Panel -->
+        <div id="log-panel" class="mt-4 hidden"> <!-- Reduced margin -->
+          <div class="terminal-header">Logs</div>
+          <div id="logs"></div>
+        </div>
+      </div>
+
+      <!-- Results Panel (Right Column) -->
+      <div class="w-full lg:w-1/2 p-4 border border-gray-700 rounded-md bg-black overflow-auto"> <!-- Reduced padding, set bg to black -->
+        <div id="results-container" class="hidden">
           <table id="results-table" class="table table-zebra w-full">
-            <thead class="sticky top-0 bg-base-200 z-10">
+            <thead>
               <tr>
                 <th>Domain</th>
                 <th>Status</th>
                 <th>Detail</th>
               </tr>
             </thead>
-            <tbody id="results-body"></tbody>
+            <tbody>
+              <!-- Results will be populated here -->
+            </tbody>
           </table>
         </div>
       </div>
     </div>
-  </div>
-  <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+  </div> <!-- End main container -->
+  <script src="/static/script.js"></script>
 </body>
 </html>

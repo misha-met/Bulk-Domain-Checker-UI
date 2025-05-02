@@ -8,7 +8,8 @@ let dataTable;
 checkBtn.addEventListener('click', async () => {
   const raw = document.getElementById('domains-input').value;
   const domains = raw.split(/\s+/).filter(Boolean);
-  if (!domains.length) return;
+  const totalDomains = domains.length;
+  if (!totalDomains) return;
 
   // UI state
   checkBtn.disabled = true;
@@ -63,8 +64,17 @@ checkBtn.addEventListener('click', async () => {
     logsContainer.appendChild(div);
   }
 
-  // initialize dashboard metrics
-  document.getElementById('counter-total').textContent = domains.length;
+  // Initialize NEW dashboard metrics
+  document.getElementById('stat-total-value').textContent = totalDomains;
+  document.getElementById('stat-checked-value').textContent = '0';
+  document.getElementById('stat-checked-percent').textContent = '0%';
+  document.getElementById('stat-online-value').textContent = '0';
+  document.getElementById('stat-online-percent').textContent = '0%';
+  document.getElementById('stat-failed-value').textContent = '0';
+  document.getElementById('stat-failed-percent').textContent = '0%';
+  document.getElementById('stat-elapsed-value').textContent = '0.0s';
+  document.getElementById('stat-speed-value').textContent = '0.0';
+
   let checkedCount = 0;
   let onlineCount = 0;
   let failedCount = 0;
@@ -100,36 +110,46 @@ checkBtn.addEventListener('click', async () => {
       ]).draw(false);
       // --- Add row to live table --- END
 
-      // update dashboard metrics
+      // update NEW dashboard metrics
       checkedCount++;
-      document.getElementById('counter-checked').textContent = checkedCount;
+      document.getElementById('stat-checked-value').textContent = checkedCount;
+      const checkedPercent = totalDomains > 0 ? Math.round((checkedCount / totalDomains) * 100) : 0;
+      document.getElementById('stat-checked-percent').textContent = `${checkedPercent}%`;
+
       if (item.ok) {
         onlineCount++;
-        document.getElementById('counter-online').textContent = onlineCount;
+        document.getElementById('stat-online-value').textContent = onlineCount;
       } else {
         failedCount++;
-        document.getElementById('counter-failed').textContent = failedCount;
+        document.getElementById('stat-failed-value').textContent = failedCount;
       }
-      // update elapsed timer
-      const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(1);
-      document.getElementById('counter-elapsed').textContent = `${elapsedSec}s`;
-      // update speed (domains per second)
-      const speed = (checkedCount / elapsedSec).toFixed(2);
-      document.getElementById('counter-speed').textContent = speed;
 
-      await new Promise(r => setTimeout(r, 200));
+      const onlinePercent = checkedCount > 0 ? Math.round((onlineCount / checkedCount) * 100) : 0;
+      const failedPercent = checkedCount > 0 ? Math.round((failedCount / checkedCount) * 100) : 0;
+      document.getElementById('stat-online-percent').textContent = `${onlinePercent}%`;
+      document.getElementById('stat-failed-percent').textContent = `${failedPercent}%`;
+
+      // update elapsed timer
+      const elapsedSec = ((performance.now() - startTime) / 1000);
+      document.getElementById('stat-elapsed-value').textContent = `${elapsedSec.toFixed(1)}s`;
+
+      // update speed (domains per second)
+      const speed = elapsedSec > 0 ? (checkedCount / elapsedSec) : 0;
+      document.getElementById('stat-speed-value').textContent = speed.toFixed(1);
+
+      await new Promise(r => setTimeout(r, 200)); // Keep delay for visual effect
     }
-    const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
-    // final speed calculation
-    document.getElementById('counter-speed').textContent = (checkedCount / elapsed).toFixed(2);
+    const finalElapsed = ((performance.now() - startTime) / 1000);
+    const finalSpeed = finalElapsed > 0 ? (checkedCount / finalElapsed) : 0;
+    document.getElementById('stat-speed-value').textContent = finalSpeed.toFixed(1);
     const doneLine = document.createElement('div');
-    doneLine.textContent = `All ${data.length} domains checked in ${elapsed}s`;
+    doneLine.textContent = `All ${data.length} domains checked in ${finalElapsed.toFixed(1)}s`;
     logsContainer.appendChild(doneLine);
     logsContainer.scrollTop = logsContainer.scrollHeight;
 
     // Live DataTable rows have been added; no final render needed
 
-  } catch (err) {
+  } catch (err) { // <-- Ensure this catch block is correctly placed
     // Display error somewhere appropriate, maybe above the (now empty) table
     resultsContainer.insertAdjacentHTML('beforebegin', `<p id="fetch-error" class="text-error mb-2">Error fetching results: ${err.message}</p>`);
     // Clear any potential partial results if fetch failed completely
