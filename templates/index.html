@@ -1,15 +1,145 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Domain Checker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" rel="stylesheet" />
-  <!-- DataTables CSS and jQuery -->
+  <!-- Dark-mode overrides -->
+  <style>
+    /* Modern Font & Base */
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: #000000; /* Pure black background */
+      color: #EAEAEA; /* Light gray text */
+    }
+
+    /* Containers & Cards */
+    #dashboard-container .stats,
+    #log-panel,
+    #results-container > div /* Table wrapper */ {
+      background-color: #111111; /* Slightly lighter dark */
+      border: 1px solid #2a2a2a; /* Subtle border */
+      border-radius: 0.5rem; /* Rounded corners */
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); /* Subtle shadow */
+    }
+
+    /* Inputs & Buttons */
+    .textarea,
+    .btn {
+      background-color: #1f1f1f; /* Darker input background */
+      color: #EAEAEA;
+      border: 1px solid #333333;
+      border-radius: 0.375rem; /* Slightly less rounded */
+    }
+    .btn:hover {
+      background-color: #2a2a2a;
+    }
+    .btn-primary {
+      background-color: #ffffff; /* White button */
+      color: #000000; /* Black text */
+      border-color: #ffffff;
+    }
+    .btn-primary:hover {
+      background-color: #f0f0f0;
+      border-color: #f0f0f0;
+    }
+
+    /* Stats Dashboard */
+    .stat {
+      border-color: #2a2a2a; /* Match container border */
+    }
+    .stat-title {
+      color: #a0a0a0; /* Muted title color */
+    }
+    .stat-value {
+      color: #ffffff; /* White value */
+    }
+    .stat-value.text-primary { color: #60a5fa; } /* Adjust primary color if needed */
+    .stat-value.text-success { color: #4ade80; } /* Vibrant green */
+    .stat-value.text-error   { color: #f87171; } /* Vibrant red */
+    .stat-value.text-secondary { color: #93c5fd; }
+    .stat-value.text-info    { color: #7dd3fc; }
+    .stat-desc {
+      color: #71717a; /* Muted description */
+    }
+
+    /* DataTables Dark Style */
+    table.dataTable {
+      color: #EAEAEA;
+      border-collapse: separate; /* Needed for spacing */
+      border-spacing: 0;
+    }
+    .dataTables_scrollHead,
+    .dataTables_scrollHeadInner table {
+      background-color: #111111; /* Match container */
+      border-bottom: 1px solid #2a2a2a;
+    }
+    .dataTables_scrollBody {
+      background-color: #080808; /* Slightly different dark for body */
+    }
+    table.dataTable thead th {
+      color: #a0a0a0; /* Muted header text */
+      font-weight: 500;
+      border-bottom: none;
+    }
+    table.dataTable tbody td {
+      padding: 0.75rem 1rem; /* Adjust padding */
+      border-bottom: 1px solid #1f1f1f; /* Subtle row separator */
+    }
+    /* Zebra striping */
+    table.table-zebra tbody tr:nth-child(odd) td { background-color: rgba(255, 255, 255, 0.02); }
+    table.table-zebra tbody tr:nth-child(even) td { background-color: transparent; }
+    /* Status Badges */
+    .badge {
+      border-radius: 9999px; /* Pill shape */
+      font-weight: 500;
+      padding: 0.25em 0.6em;
+    }
+    .badge-success {
+      background-color: rgba(74, 222, 128, 0.2); /* Green background tint */
+      color: #4ade80; /* Vibrant green text */
+    }
+    .badge-error {
+      background-color: rgba(248, 113, 113, 0.2); /* Red background tint */
+      color: #f87171; /* Vibrant red text */
+    }
+
+    /* Terminal Panel */
+    #log-panel {
+      border-color: #2a2a2a;
+    }
+    #log-panel .bg-gray-800 { /* Terminal Header */
+      background-color: #111111;
+      color: #a0a0a0;
+      border-bottom: 1px solid #2a2a2a;
+    }
+    #logs { /* Terminal Body */
+      background-color: #000000;
+      color: #4ade80; /* Use vibrant green for logs */
+      font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+    }
+
+    /* Remove DataTables internal borders */
+    table.dataTable, table.dataTable th, table.dataTable td {
+      border: none !important; /* Keep borders removed */
+    }
+    .dataTables_scrollHead, .dataTables_scrollBody {
+      border: none !important; /* Keep borders removed */
+    }
+    /* Override specific row borders if needed */
+    table.dataTable tbody td {
+       border-bottom: 1px solid #1f1f1f !important; /* Re-apply subtle row separator */
+    }
+    .dataTables_scrollHead {
+       border-bottom: 1px solid #2a2a2a !important; /* Re-apply header separator */
+    }
+
+  </style>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-  <!-- DataTables JS -->
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 </head>
 <body class="h-screen">
@@ -47,12 +177,8 @@
         </div>
       </div>
       <textarea id="domains-input" placeholder="Enter domains, one per line" class="textarea w-full textarea-bordered mb-4" rows="5"></textarea>
-      <div class="flex items-center gap-2 mb-4">
+      <div class="mb-4">
         <button id="check-btn" class="btn btn-primary">Check Domains</button>
-        <div id="loader" class="hidden items-center gap-2">
-          <span class="loading loading-spinner text-primary"></span>
-          <span>Checking...</span>
-        </div>
       </div>
       <!-- Terminal-style Log Panel -->
       <div id="log-panel" class="hidden mt-4 rounded-lg border border-gray-600 overflow-hidden">
@@ -66,7 +192,7 @@
     <div class="w-1/2 p-6 overflow-auto">
       <!-- Live Scrollable Table -->
       <div id="results-container" class="mt-6 hidden">
-        <div class="overflow-y-auto h-96 border border-base-300 rounded-lg">
+        <div class="overflow-y-auto h-96 rounded-lg">
           <table id="results-table" class="table table-zebra w-full">
             <thead class="sticky top-0 bg-base-200 z-10">
               <tr>

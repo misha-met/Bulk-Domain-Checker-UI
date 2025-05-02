@@ -1,6 +1,6 @@
 // Domain check flow (default light mode, dark mode removed)
 const checkBtn = document.getElementById('check-btn');
-const loader = document.getElementById('loader');
+// const loader = document.getElementById('loader'); // removed loader element
 const resultsContainer = document.getElementById('results-container');
 // DataTable instance for live-updating table
 let dataTable;
@@ -12,7 +12,7 @@ checkBtn.addEventListener('click', async () => {
 
   // UI state
   checkBtn.disabled = true;
-  loader.classList.remove('hidden');
+  checkBtn.textContent = 'Checking...';
   // Reset DataTable if exists
   if (dataTable) {
     dataTable.clear().destroy();
@@ -137,8 +137,8 @@ checkBtn.addEventListener('click', async () => {
       dataTable.clear().destroy();
     }
   } finally {
-    loader.classList.add('hidden');
     checkBtn.disabled = false;
+    checkBtn.textContent = 'Check Domains';
     // Clear any previous error message on new run
     document.getElementById('fetch-error')?.remove();
   }
