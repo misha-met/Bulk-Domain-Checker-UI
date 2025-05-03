@@ -6,6 +6,7 @@ const resultsContainer = document.getElementById('results-container');
 const downloadButtonsContainer = document.getElementById('download-buttons-container'); // Get download buttons container
 const downloadCsvBtn = document.getElementById('download-csv-btn');
 const downloadTxtBtn = document.getElementById('download-txt-btn');
+const resultsPanel = document.getElementById('results-panel'); // Get the results panel
 
 // DataTable instance for live-updating table
 let dataTable;
@@ -16,8 +17,6 @@ checkBtn.addEventListener('click', async () => {
   const domains = raw.split(/\s+/).filter(Boolean);
   const totalDomains = domains.length;
   if (!totalDomains) return;
-
-  const resultsPanel = document.getElementById('results-panel'); // Get the results panel
 
   // UI state
   checkBtn.disabled = true;
@@ -213,8 +212,8 @@ checkBtn.addEventListener('click', async () => {
     buttonTextSpan.innerHTML = 'Check Domains'; // Restore original text
     // Clear any previous error message on new run
     document.getElementById('fetch-error')?.remove();
-    // Keep border if results are shown, remove if fetch failed before showing anything
-    if (!currentResults.length && !document.getElementById('fetch-error')) {
+    // Keep border only if results were successfully fetched and displayed
+    if (!currentResults.length) { // Check if currentResults array is empty
         resultsPanel.classList.remove('border', 'border-gray-700');
     }
   }

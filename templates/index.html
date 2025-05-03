@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Domain Checker</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml"> <!-- Add this line -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" rel="stylesheet" />
@@ -30,9 +31,8 @@
       border-radius: 0.375rem;
       transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, transform 0.1s ease-in-out, box-shadow 0.2s ease-in-out; /* Added transitions */
     }
-    /* Specifically target the domains input textarea */
-    #domains-input {
-        resize: none; /* Disable resizing */
+    .textarea { /* Add this rule */
+        resize: none; 
     }
     .btn:hover { 
       background-color: #2a2a2a; 
@@ -74,14 +74,14 @@
     }
     .dataTables_scrollHead,
     .dataTables_scrollHeadInner table {
-      background-color: #1f1f1f; /* Updated to match input bg */
-      border-bottom: 1px solid #333333; /* Match input border */
+      background-color: #1f1f1f; /* Changed to match input background */
+      border-bottom: 1px solid #2a2a2a;
     }
     .dataTables_scrollBody {
       background-color: #080808; /* Slightly different dark for body */
     }
     table.dataTable thead th {
-      background-color: #1f1f1f; /* Added to match header bg */
+      background-color: #1f1f1f !important; /* Explicitly set header cell background */
       color: #a0a0a0; /* Muted header text */
       font-weight: 500;
       border-bottom: none;
@@ -124,9 +124,9 @@
       border-color: #4ade80; /* Highlight border when active */
     }
     #log-panel .terminal-header {
-      background-color: #1f1f1f; /* Updated to match input bg */
+      background-color: #111111;
       color: #a0a0a0;
-      border-bottom: 1px solid #333333; /* Match input border */
+      border-bottom: 1px solid #2a2a2a;
       padding: 0.5rem 1rem;
       font-size: 0.875rem;
     }
@@ -246,6 +246,57 @@
       color: #a0a0a0; /* text-muted-foreground */
     }
 
+    /* --- Scrollbar Styling --- */
+    /* Webkit (Chrome, Safari, Edge) */
+    ::-webkit-scrollbar {
+      width: 8px; /* Width of the scrollbar */
+      height: 8px; /* Height for horizontal scrollbars */
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent; /* Make track transparent by default */
+      border-radius: 4px;
+    }
+
+    /* Specific track colors */
+    .textarea::-webkit-scrollbar-track {
+        background: #1f1f1f; /* Match textarea background */
+    }
+    #logs::-webkit-scrollbar-track,
+    #results-container::-webkit-scrollbar-track,
+    .dataTables_scrollBody::-webkit-scrollbar-track {
+        background: #080808; /* Match results/log panel background */
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background-color: #444444; /* Scrollbar handle color */
+      border-radius: 4px;
+      border: 2px solid transparent; /* Creates padding around thumb */
+      background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: #555555; /* Slightly lighter on hover */
+    }
+
+    /* Firefox */
+    /* For elements with specific backgrounds */
+    .textarea {
+        scrollbar-width: thin;
+        scrollbar-color: #444444 #1f1f1f; /* thumb track */
+    }
+    #logs,
+    #results-container,
+    .dataTables_scrollBody {
+        scrollbar-width: thin;
+        scrollbar-color: #444444 #080808; /* thumb track */
+    }
+    /* General fallback for other scrollable areas if needed */
+    body {
+        scrollbar-width: thin;
+        scrollbar-color: #444444 #000000; /* thumb track for body */
+    }
+
     /* --- Animation Keyframes --- */
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
@@ -255,82 +306,6 @@
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: .7; }
-    }
-
-    /* --- Scrollbar Styling --- */
-    /* Common thumb style */
-    .scrollbar-thumb {
-      background-color: #4a4a4a; /* Thumb color */
-      border-radius: 4px;
-    }
-    .scrollbar-thumb:hover {
-      background-color: #6a6a6a; /* Thumb color on hover */
-    }
-
-    /* Style for elements with #000000 background */
-    body, #logs, .main-content-panel {
-      scrollbar-width: thin;
-      scrollbar-color: #4a4a4a #000000; /* thumb track */
-    }
-    body::-webkit-scrollbar, #logs::-webkit-scrollbar, .main-content-panel::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    body::-webkit-scrollbar-track, #logs::-webkit-scrollbar-track, .main-content-panel::-webkit-scrollbar-track {
-      background: #000000;
-      border-radius: 4px;
-    }
-    body::-webkit-scrollbar-thumb, #logs::-webkit-scrollbar-thumb, .main-content-panel::-webkit-scrollbar-thumb {
-      background-color: #4a4a4a;
-      border-radius: 4px;
-      border: 2px solid #000000;
-    }
-    body::-webkit-scrollbar-thumb:hover, #logs::-webkit-scrollbar-thumb:hover, .main-content-panel::-webkit-scrollbar-thumb:hover {
-      background-color: #6a6a6a;
-    }
-
-    /* Style for textarea#domains-input (#1f1f1f background) */
-    textarea#domains-input {
-        scrollbar-width: thin;
-        scrollbar-color: #4a4a4a #1f1f1f; /* thumb track */
-    }
-    textarea#domains-input::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    textarea#domains-input::-webkit-scrollbar-track {
-        background: #1f1f1f;
-        border-radius: 4px;
-    }
-    textarea#domains-input::-webkit-scrollbar-thumb {
-        background-color: #4a4a4a;
-        border-radius: 4px;
-        border: 2px solid #1f1f1f;
-    }
-    textarea#domains-input::-webkit-scrollbar-thumb:hover {
-        background-color: #6a6a6a;
-    }
-
-    /* Style for .dataTables_scrollBody (#080808 background) */
-    .dataTables_scrollBody {
-        scrollbar-width: thin;
-        scrollbar-color: #4a4a4a #080808; /* thumb track */
-    }
-    .dataTables_scrollBody::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    .dataTables_scrollBody::-webkit-scrollbar-track {
-        background: #080808;
-        border-radius: 4px;
-    }
-    .dataTables_scrollBody::-webkit-scrollbar-thumb {
-        background-color: #4a4a4a;
-        border-radius: 4px;
-        border: 2px solid #080808;
-    }
-    .dataTables_scrollBody::-webkit-scrollbar-thumb:hover {
-        background-color: #6a6a6a;
     }
 
     /* Apply Entrance Animation */
@@ -405,7 +380,7 @@
     <div id="new-dashboard-container" class="mb-4"> <!-- Reduced bottom margin -->
       <div class="flex flex-col gap-1 mb-3"> <!-- Reduced gap and bottom margin -->
         <h2 class="text-xl tracking-tight font-semibold text-foreground"> <!-- Reduced font size -->
-          Domain Checker Status
+          Bulk Domain Checker
         </h2>
         <p class="text-xs text-muted-foreground"> <!-- Reduced font size -->
           Real-time statistics for your domain checking operation
@@ -488,10 +463,10 @@
       </div>
     </div>
 
-    <!-- Container for Input/Logs and Results columns -->
-    <div class="flex flex-col lg:flex-row h-full gap-2"> <!-- Re-added flex flex-col lg:flex-row -->
+    <!-- Flex container for Input/Logs and Results columns -->
+    <div class="flex flex-col lg:flex-row h-full gap-2"> <!-- Reduced gap -->
       <!-- Input Panel (Left Column) -->
-      <div class="w-full lg:w-1/2 p-4 border border-gray-700 rounded-md bg-black overflow-auto main-content-panel"> <!-- Removed bottom margin -->
+      <div class="w-full lg:w-1/2 p-4 border border-gray-700 rounded-md bg-black overflow-auto main-content-panel"> <!-- Added main-content-panel class -->
         <textarea id="domains-input" placeholder="Enter domains, one per line" class="textarea w-full textarea-bordered mb-3" rows="4"></textarea> <!-- Reduced margin and rows -->
 
         <button id="check-btn" class="btn btn-primary w-full">
