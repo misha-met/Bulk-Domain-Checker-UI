@@ -28,6 +28,8 @@ checkBtn.addEventListener('click', async () => {
     searching: false,
     ordering: true,
     autoWidth: false,
+    deferRender: true,       // improve performance on large datasets
+    scroller: true,          // enable virtualized scrolling
   });
 
   const logPanel = document.getElementById('log-panel');
@@ -89,6 +91,58 @@ checkBtn.addEventListener('click', async () => {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    // batching to reduce DOM thrash
+    const pendingItems = [];
+    let flushScheduled = false;
+    const startTimeLocal = performance.now();
+    function scheduleFlush() {
+      if (!flushScheduled) {
+        flushScheduled = true;
+        setTimeout(flushItems, 100);
+      }
+    }
+    function flushItems() {
+      for (const item of pendingItems) {
+        // logs
+        const pre = document.createElement('div');
+        pre.textContent = `Checking ${item.domain}...`;
+        logsContainer.appendChild(pre);
+        const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error checking' : 'Offline');
+        const resultDiv = document.createElement('div');
+        resultDiv.textContent = `${item.domain}: ${statusText}`;
+        logsContainer.appendChild(resultDiv);
+        // prune logs to limit DOM size
+        if (logsContainer.children.length > 1000) {
+          logsContainer.removeChild(logsContainer.firstChild);
+        }
+        // table row
+        dataTable.row.add([
+          item.domain,
+          `<span class="badge ${item.ok ? 'badge-success' : 'badge-error'}">${statusText}</span>`,
+          item.detail
+        ]);
+        // stats
+        checkedCount++;
+        if (item.ok) onlineCount++; else failedCount++;
+      }
+      // redraw table once per batch
+      dataTable.draw(false);
+      // update metrics display
+      document.getElementById('stat-checked-value').textContent = checkedCount;
+      document.getElementById('stat-checked-percent').textContent = `${Math.round((checkedCount/totalDomains)*100)}%`;
+      document.getElementById('stat-online-value').textContent = onlineCount;
+      document.getElementById('stat-online-percent').textContent = `${Math.round((onlineCount/checkedCount)*100)}%`;
+      document.getElementById('stat-failed-value').textContent = failedCount;
+      document.getElementById('stat-failed-percent').textContent = `${Math.round((failedCount/checkedCount)*100)}%`;
+      const elapsedSec = ((performance.now() - startTimeLocal)/1000);
+      document.getElementById('stat-elapsed-value').textContent = `${elapsedSec.toFixed(1)}s`;
+      document.getElementById('stat-speed-value').textContent = `${(checkedCount/elapsedSec).toFixed(1)}`;
+      // clear buffer and reset flag
+      pendingItems.length = 0;
+      flushScheduled = false;
+      // scroll logs
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
     // stream each result line as JSON
     while (true) {
       const { done, value } = await reader.read();
@@ -98,57 +152,13 @@ checkBtn.addEventListener('click', async () => {
       buffer = lines.pop();
       for (const line of lines) {
         if (!line.trim()) continue;
-        const item = JSON.parse(line);
-        const lineStart = document.createElement('div');
-        lineStart.textContent = `Checking ${item.domain}...`;
-        logsContainer.appendChild(lineStart);
-        logsContainer.scrollTop = logsContainer.scrollHeight;
-        // live update without artificial delay
-        const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error checking' : 'Offline');
-        const lineResult = document.createElement('div');
-        lineResult.textContent = `${item.domain}: ${statusText}`;
-        logsContainer.appendChild(lineResult);
-        logsContainer.scrollTop = logsContainer.scrollHeight;
-
-        // --- Add row to live table --- START
-        // Add row via DataTables API for live update
-        dataTable.row.add([
-          item.domain,
-          `<span class="badge ${item.ok ? 'badge-success' : 'badge-error'}">${item.ok ? 'Online' : 'Offline'}</span>`,
-          item.detail
-        ]).draw(false);
-        // --- Add row to live table --- END
-
-        // update NEW dashboard metrics
-        checkedCount++;
-        document.getElementById('stat-checked-value').textContent = checkedCount;
-        const checkedPercent = totalDomains > 0 ? Math.round((checkedCount / totalDomains) * 100) : 0;
-        document.getElementById('stat-checked-percent').textContent = `${checkedPercent}%`;
-
-        if (item.ok) {
-          onlineCount++;
-          document.getElementById('stat-online-value').textContent = onlineCount;
-        } else {
-          failedCount++;
-          document.getElementById('stat-failed-value').textContent = failedCount;
-        }
-
-        const onlinePercent = checkedCount > 0 ? Math.round((onlineCount / checkedCount) * 100) : 0;
-        const failedPercent = checkedCount > 0 ? Math.round((failedCount / checkedCount) * 100) : 0;
-        document.getElementById('stat-online-percent').textContent = `${onlinePercent}%`;
-        document.getElementById('stat-failed-percent').textContent = `${failedPercent}%`;
-
-        // update elapsed timer
-        const elapsedSec = ((performance.now() - startTime) / 1000);
-        document.getElementById('stat-elapsed-value').textContent = `${elapsedSec.toFixed(1)}s`;
-
-        // update speed (domains per second)
-        const speed = elapsedSec > 0 ? (checkedCount / elapsedSec) : 0;
-        document.getElementById('stat-speed-value').textContent = speed.toFixed(1);
+        pendingItems.push(JSON.parse(line));
+        scheduleFlush();
       }
     }
-    // final summary after stream end
-    const finalElapsed = ((performance.now() - startTime) / 1000);
+    // flush any remaining items and final summary
+    if (pendingItems.length) flushItems();
+    const finalElapsed = ((performance.now() - startTimeLocal) / 1000);
     const doneLine = document.createElement('div');
     doneLine.textContent = `All ${totalDomains} domains checked in ${finalElapsed.toFixed(1)}s`;
     logsContainer.appendChild(doneLine);
