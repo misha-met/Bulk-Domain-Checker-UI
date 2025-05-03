@@ -236,12 +236,12 @@ function downloadFile(filename, content, mimeType) {
 downloadCsvBtn.addEventListener('click', () => {
     if (!currentResults.length) return;
     let csvContent = "Domain,Status,Detail\n"; // Header row
-    currentResults.forEach(item => {
+    for (const item of currentResults) { // Changed from forEach to for...of
         const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
         // Escape commas and quotes in detail
         const detail = `"${item.detail.replace(/"/g, '""')}"`;
         csvContent += `${item.domain},${statusText},${detail}\n`;
-    });
+    }
     downloadFile('domain_results.csv', csvContent, 'text/csv;charset=utf-8;');
 });
 
@@ -249,10 +249,10 @@ downloadCsvBtn.addEventListener('click', () => {
 downloadTxtBtn.addEventListener('click', () => {
     if (!currentResults.length) return;
     let txtContent = "";
-    currentResults.forEach(item => {
+    for (const item of currentResults) { // Changed from forEach to for...of
         const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
         txtContent += `${item.domain}: ${statusText} - ${item.detail}\n`;
-    });
+    }
     downloadFile('domain_results.txt', txtContent, 'text/plain;charset=utf-8;');
 });
 
