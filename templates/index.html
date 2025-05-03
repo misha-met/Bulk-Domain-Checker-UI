@@ -286,6 +286,7 @@
         <textarea id="domains-input" placeholder="Enter domains, one per line" class="textarea w-full textarea-bordered mb-3" rows="4"></textarea> <!-- Reduced margin and rows -->
 
         <button id="check-btn" class="btn btn-primary w-full">Check Domains</button>
+        <!-- Download buttons removed from here -->
 
         <!-- Log Panel -->
         <div id="log-panel" class="mt-4 hidden"> <!-- Reduced margin -->
@@ -295,8 +296,8 @@
       </div>
 
       <!-- Results Panel (Right Column) -->
-      <div class="w-full lg:w-1/2 p-4 border border-gray-700 rounded-md bg-black overflow-auto"> <!-- Reduced padding, set bg to black -->
-        <div id="results-container" class="hidden">
+      <div class="w-full lg:w-1/2 p-4 border border-gray-700 rounded-md bg-black overflow-auto flex flex-col"> <!-- Reduced padding, set bg to black, added flex flex-col -->
+        <div id="results-container" class="hidden flex-grow overflow-auto"> <!-- Added flex-grow and overflow-auto -->
           <table id="results-table" class="table table-zebra w-full">
             <thead>
               <tr>
@@ -309,6 +310,11 @@
               <!-- Results will be populated here -->
             </tbody>
           </table>
+        </div>
+        <!-- Download Buttons Container -->
+        <div id="download-buttons-container" class="mt-2 flex justify-end gap-2 hidden"> <!-- Added container, hidden initially, flex layout -->
+            <button id="download-csv-btn" class="btn btn-primary btn-sm">Download CSV</button>
+            <button id="download-txt-btn" class="btn btn-primary btn-sm">Download TXT</button>
         </div>
       </div>
     </div>

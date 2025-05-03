@@ -2,8 +2,13 @@
 const checkBtn = document.getElementById('check-btn');
 // const loader = document.getElementById('loader'); // removed loader element
 const resultsContainer = document.getElementById('results-container');
+const downloadButtonsContainer = document.getElementById('download-buttons-container'); // Get download buttons container
+const downloadCsvBtn = document.getElementById('download-csv-btn');
+const downloadTxtBtn = document.getElementById('download-txt-btn');
+
 // DataTable instance for live-updating table
 let dataTable;
+let currentResults = []; // Store results for download
 
 checkBtn.addEventListener('click', async () => {
   const raw = document.getElementById('domains-input').value;
@@ -17,8 +22,11 @@ checkBtn.addEventListener('click', async () => {
   // Reset DataTable if exists
   if (dataTable) {
     dataTable.clear().destroy();
+    dataTable = null; // Ensure it's fully reset
   }
   resultsContainer.classList.remove('hidden'); // Show the table container
+  downloadButtonsContainer.classList.add('hidden'); // Hide download buttons initially
+  currentResults = []; // Clear previous results
   // Initialize DataTable
   dataTable = $('#results-table').DataTable({
     scrollY: '300px',
@@ -123,6 +131,9 @@ checkBtn.addEventListener('click', async () => {
           logsContainer.removeChild(logsContainer.firstChild);
         }
 
+        // Store result for download
+        currentResults.push(item);
+
         // table row - Use item.detail directly for successful checks
         dataTable.row.add([
           item.domain,
@@ -161,8 +172,13 @@ checkBtn.addEventListener('click', async () => {
       buffer = lines.pop();
       for (const line of lines) {
         if (!line.trim()) continue;
-        pendingItems.push(JSON.parse(line));
-        scheduleFlush();
+        try {
+            pendingItems.push(JSON.parse(line));
+            scheduleFlush();
+        } catch (e) {
+            console.error("Failed to parse JSON line:", line, e);
+            // Optionally add error handling for individual line parse failures
+        }
       }
     }
     // flush any remaining items and final summary
@@ -172,6 +188,12 @@ checkBtn.addEventListener('click', async () => {
     doneLine.textContent = `All ${totalDomains} domains checked in ${finalElapsed.toFixed(1)}s`;
     logsContainer.appendChild(doneLine);
     logsContainer.scrollTop = logsContainer.scrollHeight;
+
+    // Show download buttons if there are results
+    if (currentResults.length > 0) {
+        downloadButtonsContainer.classList.remove('hidden');
+    }
+
   } catch (err) { // <-- Ensure this catch block is correctly placed
     // Display error somewhere appropriate, maybe above the (now empty) table
     resultsContainer.insertAdjacentHTML('beforebegin', `<p id="fetch-error" class="text-error mb-2">Error fetching results: ${err.message}</p>`);
@@ -179,12 +201,51 @@ checkBtn.addEventListener('click', async () => {
     if (dataTable) {
       dataTable.clear().destroy();
     }
+    // Hide download buttons on error
+    downloadButtonsContainer.classList.add('hidden');
   } finally {
     checkBtn.disabled = false;
     checkBtn.textContent = 'Check Domains';
     // Clear any previous error message on new run
     document.getElementById('fetch-error')?.remove();
   }
+});
+
+// Function to trigger file download
+function downloadFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Download CSV handler
+downloadCsvBtn.addEventListener('click', () => {
+    if (!currentResults.length) return;
+    let csvContent = "Domain,Status,Detail\n"; // Header row
+    currentResults.forEach(item => {
+        const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
+        // Escape commas and quotes in detail
+        const detail = `"${item.detail.replace(/"/g, '""')}"`;
+        csvContent += `${item.domain},${statusText},${detail}\n`;
+    });
+    downloadFile('domain_results.csv', csvContent, 'text/csv;charset=utf-8;');
+});
+
+// Download TXT handler
+downloadTxtBtn.addEventListener('click', () => {
+    if (!currentResults.length) return;
+    let txtContent = "";
+    currentResults.forEach(item => {
+        const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
+        txtContent += `${item.domain}: ${statusText} - ${item.detail}\n`;
+    });
+    downloadFile('domain_results.txt', txtContent, 'text/plain;charset=utf-8;');
 });
 
 // Subtle animation for details opening (insert CSS)
