@@ -1,16 +1,16 @@
-# macOS specific
-.DS_Store
-
-# Python cache
+# Python bytecode
 __pycache__/
 *.pyc
 
-# Domain lists (if sensitive)
-# domains.txt
-*.txt
+# Virtual environment
+venv/
+.venv/
+env/
+.env/
 
 # Log files
 *.log
 
-# Environment variables file
-.env
+# OS generated files
+.DS_Store
+Thumbs.db

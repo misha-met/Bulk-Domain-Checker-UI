@@ -1,0 +1,14 @@
+# httpx: Modern async HTTP client used for checking domains. [http2] adds HTTP/2 support.
+httpx[http2]>=0.23.0
+# h2: Low-level HTTP/2 protocol library, often required by httpx[http2].
+h2>=4.1.0
+# tqdm: Displays progress bars, used in the command-line script.
+tqdm>=4.60.0
+# Flask: Micro web framework for the web application. [async] adds ASGI integration.
+Flask[async]>=2.0.0
+# rich: Library for rich text and beautiful formatting in the terminal (used by CLI script).
+rich>=12.0
+# uvicorn: ASGI server used to run the Flask/ASGI application.
+uvicorn>=0.17.0
+# asgiref: Provides ASGI utilities, including the WSGI-to-ASGI adapter.
+asgiref>=3.8.0
