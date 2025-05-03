@@ -102,25 +102,34 @@ checkBtn.addEventListener('click', async () => {
       }
     }
     function flushItems() {
+      const now = new Date();
+      const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
       for (const item of pendingItems) {
-        // logs
-        const pre = document.createElement('div');
-        pre.textContent = `Checking ${item.domain}...`;
-        logsContainer.appendChild(pre);
-        const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error checking' : 'Offline');
+        // logs - Terminal Style
+        const cmdDiv = document.createElement('div');
+        cmdDiv.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> <span class="text-blue-400">$</span> check_domain ${item.domain}`;
+        logsContainer.appendChild(cmdDiv);
+
+        const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
+        const statusColor = item.ok ? 'text-green-400' : 'text-red-400';
         const resultDiv = document.createElement('div');
-        resultDiv.textContent = `${item.domain}: ${statusText}`;
+        // Display the actual detail from the backend (status code, TCP connect, DNS, or error)
+        resultDiv.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> <span class="${statusColor}">Status: ${statusText}</span>, Detail: ${item.detail}`;
         logsContainer.appendChild(resultDiv);
+
         // prune logs to limit DOM size
         if (logsContainer.children.length > 1000) {
           logsContainer.removeChild(logsContainer.firstChild);
         }
-        // table row
+
+        // table row - Use item.detail directly for successful checks
         dataTable.row.add([
           item.domain,
           `<span class="badge ${item.ok ? 'badge-success' : 'badge-error'}">${statusText}</span>`,
-          item.detail
+          item.detail // Show the actual detail (status code, TCP, DNS, error)
         ]);
+
         // stats
         checkedCount++;
         if (item.ok) onlineCount++; else failedCount++;

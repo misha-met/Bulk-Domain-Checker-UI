@@ -16,31 +16,50 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
     parsed = urllib.parse.urlparse(domain)
     raw = parsed.netloc or parsed.path
     host = raw.split('/')[0].split(':')[0]
-    # Try both schemes with trailing slash for proper responses
-    urls = [f"https://{host}/", f"http://{host}/"]
+    # Try both schemes WITHOUT trailing slash initially, NO redirects
+    urls = [f"https://{host}", f"http://{host}"]
     last_err = None
     for url in urls:
         try:
-            # perform GET follow redirects; any response indicates reachability
-            resp = await client.get(url, follow_redirects=True)
-            return True, str(resp.status)
+            # Perform GET WITHOUT redirects first
+            resp = await client.get(url, follow_redirects=False)
+            # Return True for any status code < 400 (success or redirect)
+            # and report the actual status code
+            if resp.status_code < 400:
+                return True, str(resp.status_code)
+            else:
+                # Treat >= 400 as an error for this specific URL attempt
+                last_err = HTTPError(f"HTTP status {resp.status_code}")
+                continue # Try the other scheme
         except Exception as e:
             # record error and try next URL
             last_err = e
             continue
+
+    # If initial checks failed (no 2xx/3xx), try fallbacks
     # TCP connect fallback on ports 443/80
     for port in (443, 80):
         try:
-            await asyncio.open_connection(host, port)
+            # Set a reasonable timeout for the connection attempt
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port), timeout=client.timeout.connect
+            )
+            writer.close()
+            await writer.wait_closed()
             return True, f'TCP connect on port {port}'
-        except Exception:
-            pass
+        except asyncio.TimeoutError:
+            last_err = asyncio.TimeoutError(f"TCP connect timeout on port {port}")
+        except Exception as e:
+            last_err = e # Keep the last error
+            pass # Try next port or DNS
+
     # DNS resolution fallback
     try:
-        socket.getaddrinfo(host, None)
+        await asyncio.get_event_loop().getaddrinfo(host, None)
         return True, 'DNS resolution only'
-    except Exception:
-        return False, str(last_err)
+    except Exception as e:
+        # If DNS also fails, return False with the last recorded error
+        return False, str(last_err or e) # Ensure we return an error string
 
 async def run(domains, timeout, workers):
     # configure HTTPX async client with HTTP/2 and limits
