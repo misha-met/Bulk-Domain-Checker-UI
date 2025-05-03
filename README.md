@@ -2,6 +2,8 @@
 
 A Python application with both a web interface and a command-line tool to check the availability and responsiveness of a list of domains.
 
+![Web UI Demo](Demo.png)
+
 It determines if a domain is potentially available or taken by checking:
 1.  HTTPS and HTTP status codes (success or redirect indicates taken).
 2.  TCP connection success on ports 443 and 80 (indicates taken).
