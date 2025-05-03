@@ -1,74 +1,64 @@
-# Domain Responsiveness Checker
+# Domain Status Checker
 
-This Python script tests a list of domains via HTTP HEAD requests and reports which are responsive.
+A simple web application to check the status (Online, Offline, Error) of a list of domains. It provides real-time updates in a table and a log panel, along with options to download the results.
+
+## Features
+
+*   **Bulk Domain Checking:** Enter multiple domains (separated by spaces or newlines) to check their status concurrently.
+*   **Real-time Updates:** View results as they come in via streamed updates to a table and a detailed log panel.
+*   **Status Details:** Shows whether a domain is Online, Offline, or encountered an Error during the check, along with specific details (e.g., HTTP status code, DNS error, connection error).
+*   **Performance Metrics:** Displays total domains, checked count/percentage, online/failed counts/percentages, elapsed time, and check speed.
+*   **Download Results:** Export the check results as CSV or TXT files.
+*   **Responsive UI:** Built with Flask and vanilla JavaScript, using Tailwind CSS (via CDN) for styling and DataTables for the results table.
 
 ## Prerequisites
-- Python 3.7 or newer
-- pip (Python package installer)
+
+*   Python 3.x
+*   pip (Python package installer)
 
 ## Installation
-1. Clone or download this workspace.
-2. Change into the project directory:
-   ```bash
-   cd "Quick test"
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+
+1.  **Clone the repository:**
+    ```bash
+    git clone <your-repository-url>
+    cd <repository-directory>
+    ```
+2.  **Create and activate a virtual environment (recommended):**
+    *   On macOS/Linux:
+        ```bash
+        python3 -m venv venv
+        source venv/bin/activate
+        ```
+    *   On Windows:
+        ```bash
+        python -m venv venv
+        .\venv\Scripts\activate
+        ```
+3.  **Install the required Python packages:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+## Running the Application
+
+1.  **Start the Flask server:**
+    ```bash
+    python app.py
+    ```
+2.  **Access the application:**
+    Open your web browser and navigate to `http://127.0.0.1:5000` (or the address provided in the terminal output).
 
 ## Usage
-Prepare a text file (e.g. `domains.txt`) containing one domain per line, for example:
-```
-example.com
-github.com
-invalid.domain
-```
 
-Run the script:
-```bash
-python check_domains.py domains.txt [--timeout TIMEOUT] [--workers WORKERS] [--log-file LOGFILE]
-```
+1.  Enter the domains you want to check into the text area. Each domain should be separated by a space or a newline.
+2.  Click the "Check Domains" button.
+3.  Observe the results appearing in the "Results" table and the "Logs" panel below.
+4.  Once the checks are complete, use the "Download CSV" or "Download TXT" buttons to save the results.
 
-Arguments:
-- `file` (positional): Path to the domain list file.
-- `--timeout`: Seconds to wait for each request (default: 5).
-- `--workers`: Maximum number of concurrent requests (default: 100).
-- `--log-file`: Path to write detailed results (default: `domain_check.log`).
+## Technologies Used
 
-## Output
-- Console: summary of how many domains were responsive/unresponsive and their status codes or error messages.
-- Log file: one line per domain with ✔ or ✖ and detail. See `--log-file`.
-
-## Example
-```bash
-python check_domains.py domains.txt --timeout 10 --workers 50 --log-file results.log
-```
-
-Results will appear on stdout and in `results.log`.
-
-## Web Interface
-
-A modern responsive UI is available via Flask:
-
-1. Ensure dependencies are installed:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Start the web server:
-   ```bash
-   python app.py
-   ```
-3. Open your browser at `http://localhost:5000`.
-4. Paste or type domains into the textarea, then click _Check Domains_.
-5. Toggle between light and dark mode using the button in the sidebar (or bottom-right on mobile).
-
-## Log Panel Animation
-
-When you initiate a domain check, a log panel appears below the controls and simulates real-time backend logs:
-
-- Each domain being checked is appended line by line, creating a scrolling effect.
-- After all checks are initiated, a final message is displayed.
-- The log panel auto-scrolls to always show the latest entries.
+*   **Backend:** Python, Flask
+*   **Frontend:** HTML, CSS (Tailwind CSS via CDN), JavaScript
+*   **Libraries:** DataTables.js
 
 
