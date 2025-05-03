@@ -1,15 +1,15 @@
-# Domain Availability Checker
+# Domain Responsiveness Checker
 
-A Python application with both a web interface and a command-line tool to check the availability and responsiveness of a list of domains.
+A Python application with both a web interface and a command-line tool to check the responsiveness of a list of domains.
 
 ![Web UI Demo](Demo.png)
 
-It determines if a domain is potentially available or taken by checking:
-1.  HTTPS and HTTP status codes (success or redirect indicates taken).
-2.  TCP connection success on ports 443 and 80 (indicates taken).
-3.  DNS resolution success (indicates taken).
+It determines if a domain is responsive by checking:
+1.  HTTPS and HTTP status codes (success or redirect indicates responsiveness).
+2.  TCP connection success on ports 443 and 80 (indicates responsiveness).
+3.  DNS resolution success (indicates responsiveness).
 
-If all checks fail, the domain is considered potentially available (or unresponsive).
+If all checks fail, the domain is considered unresponsive.
 
 ## Features
 
@@ -17,7 +17,7 @@ If all checks fail, the domain is considered potentially available (or unrespons
 *   **Bulk Domain Checking:** Input multiple domains for concurrent checking.
 *   **Multiple Check Methods:** Uses HTTP GET, TCP connect, and DNS resolution for comprehensive checks.
 *   **Real-time Updates (Web UI):** View results streamed to a table and log panel.
-*   **Detailed Results:** Shows domain status (Online/Taken, Offline/Available) and the reason (e.g., HTTP status, TCP connect, DNS resolution, specific error).
+*   **Detailed Results:** Shows domain status (e.g., Online, Offline, Error) and the reason (e.g., HTTP status, TCP connect, DNS resolution, specific error).
 *   **Performance Metrics (Web UI):** Displays progress, counts, elapsed time, and check speed.
 *   **Download Results (Web UI):** Export check results as CSV or TXT files.
 *   **Formatted Output (CLI):** Displays results in a clear table using Rich, with a summary and breakdown.
@@ -121,10 +121,10 @@ You can run either the Web UI or the Command-Line Interface.
 The `check_domains.py` script contains the core logic:
 
 1.  It takes a domain and first tries `HTTPS GET`, then `HTTP GET` (without following redirects).
-2.  If a status code < 400 (Success or Redirect) is received, the domain is marked as **Online/Taken**.
-3.  If HTTP checks fail, it attempts a direct TCP connection to the host on port 443, then port 80. Success marks it as **Online/Taken**.
-4.  If TCP checks fail, it attempts DNS resolution. Success marks it as **Online/Taken** (with a note that only DNS resolved).
-5.  If all checks fail, the domain is marked as **Offline/Available**, reporting the last known error.
+2.  If a status code < 400 (Success or Redirect) is received, the domain is marked as **Online**.
+3.  If HTTP checks fail, it attempts a direct TCP connection to the host on port 443, then port 80. Success marks it as **Online**.
+4.  If TCP checks fail, it attempts DNS resolution. Success marks it as **Online** (with a note that only DNS resolved).
+5.  If all checks fail, the domain is marked as **Offline**, reporting the last known error.
 
 The `app.py` provides a Flask web interface that calls the checking logic via `run_stream` (an async generator) and streams results back to the browser using a background thread and queue mechanism compatible with Flask/Uvicorn.
 
