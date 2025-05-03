@@ -252,6 +252,82 @@
       50% { opacity: .7; }
     }
 
+    /* --- Scrollbar Styling --- */
+    /* Common thumb style */
+    .scrollbar-thumb {
+      background-color: #4a4a4a; /* Thumb color */
+      border-radius: 4px;
+    }
+    .scrollbar-thumb:hover {
+      background-color: #6a6a6a; /* Thumb color on hover */
+    }
+
+    /* Style for elements with #000000 background */
+    body, #logs, .main-content-panel {
+      scrollbar-width: thin;
+      scrollbar-color: #4a4a4a #000000; /* thumb track */
+    }
+    body::-webkit-scrollbar, #logs::-webkit-scrollbar, .main-content-panel::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    body::-webkit-scrollbar-track, #logs::-webkit-scrollbar-track, .main-content-panel::-webkit-scrollbar-track {
+      background: #000000;
+      border-radius: 4px;
+    }
+    body::-webkit-scrollbar-thumb, #logs::-webkit-scrollbar-thumb, .main-content-panel::-webkit-scrollbar-thumb {
+      background-color: #4a4a4a;
+      border-radius: 4px;
+      border: 2px solid #000000;
+    }
+    body::-webkit-scrollbar-thumb:hover, #logs::-webkit-scrollbar-thumb:hover, .main-content-panel::-webkit-scrollbar-thumb:hover {
+      background-color: #6a6a6a;
+    }
+
+    /* Style for textarea#domains-input (#1f1f1f background) */
+    textarea#domains-input {
+        scrollbar-width: thin;
+        scrollbar-color: #4a4a4a #1f1f1f; /* thumb track */
+    }
+    textarea#domains-input::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    textarea#domains-input::-webkit-scrollbar-track {
+        background: #1f1f1f;
+        border-radius: 4px;
+    }
+    textarea#domains-input::-webkit-scrollbar-thumb {
+        background-color: #4a4a4a;
+        border-radius: 4px;
+        border: 2px solid #1f1f1f;
+    }
+    textarea#domains-input::-webkit-scrollbar-thumb:hover {
+        background-color: #6a6a6a;
+    }
+
+    /* Style for .dataTables_scrollBody (#080808 background) */
+    .dataTables_scrollBody {
+        scrollbar-width: thin;
+        scrollbar-color: #4a4a4a #080808; /* thumb track */
+    }
+    .dataTables_scrollBody::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    .dataTables_scrollBody::-webkit-scrollbar-track {
+        background: #080808;
+        border-radius: 4px;
+    }
+    .dataTables_scrollBody::-webkit-scrollbar-thumb {
+        background-color: #4a4a4a;
+        border-radius: 4px;
+        border: 2px solid #080808;
+    }
+    .dataTables_scrollBody::-webkit-scrollbar-thumb:hover {
+        background-color: #6a6a6a;
+    }
+
     /* Apply Entrance Animation */
     .fade-in {
       animation: fadeIn 0.5s ease-out forwards;
