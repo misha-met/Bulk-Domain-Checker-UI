@@ -17,9 +17,12 @@ checkBtn.addEventListener('click', async () => {
   const totalDomains = domains.length;
   if (!totalDomains) return;
 
+  const resultsPanel = document.getElementById('results-panel'); // Get the results panel
+
   // UI state
   checkBtn.disabled = true;
   buttonTextSpan.innerHTML = '<span class="btn-shine">Checking Domains</span>'; // Apply shine animation
+  resultsPanel.classList.add('border', 'border-gray-700'); // Add border when checking starts
   // Reset DataTable if exists
   if (dataTable) {
     dataTable.clear().destroy();
@@ -204,11 +207,16 @@ checkBtn.addEventListener('click', async () => {
     }
     // Hide download buttons on error
     downloadButtonsContainer.classList.add('hidden');
+    resultsPanel.classList.remove('border', 'border-gray-700'); // Remove border on error
   } finally {
     checkBtn.disabled = false;
     buttonTextSpan.innerHTML = 'Check Domains'; // Restore original text
     // Clear any previous error message on new run
     document.getElementById('fetch-error')?.remove();
+    // Keep border if results are shown, remove if fetch failed before showing anything
+    if (!currentResults.length && !document.getElementById('fetch-error')) {
+        resultsPanel.classList.remove('border', 'border-gray-700');
+    }
   }
 });
 
