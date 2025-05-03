@@ -11,6 +11,7 @@ const resultsPanel = document.getElementById('results-panel'); // Get the result
 // DataTable instance for live-updating table
 let dataTable;
 let currentResults = []; // Store results for download
+let elapsedTimeInterval = null; // Variable to hold the interval timer ID
 
 checkBtn.addEventListener('click', async () => {
   const raw = document.getElementById('domains-input').value;
@@ -91,9 +92,25 @@ checkBtn.addEventListener('click', async () => {
   let checkedCount = 0;
   let onlineCount = 0;
   let failedCount = 0;
+  let startTimeLocal = null; // Initialize start time variable
+
+  // Clear any previous timer
+  if (elapsedTimeInterval) {
+    clearInterval(elapsedTimeInterval);
+    elapsedTimeInterval = null;
+  }
 
   try {
-    const startTime = performance.now();
+    startTimeLocal = performance.now(); // Record start time
+
+    // Start the elapsed time timer
+    elapsedTimeInterval = setInterval(() => {
+        if (startTimeLocal) {
+            const elapsedSec = ((performance.now() - startTimeLocal) / 1000);
+            document.getElementById('stat-elapsed-value').textContent = `${elapsedSec.toFixed(1)}s`;
+        }
+    }, 100); // Update every 100ms for smoother display
+
     const response = await fetch('/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -105,7 +122,6 @@ checkBtn.addEventListener('click', async () => {
     // batching to reduce DOM thrash
     const pendingItems = [];
     let flushScheduled = false;
-    const startTimeLocal = performance.now();
     function scheduleFlush() {
       if (!flushScheduled) {
         flushScheduled = true;
@@ -157,9 +173,7 @@ checkBtn.addEventListener('click', async () => {
       document.getElementById('stat-online-percent').textContent = `${Math.round((onlineCount/checkedCount)*100)}%`;
       document.getElementById('stat-failed-value').textContent = failedCount;
       document.getElementById('stat-failed-percent').textContent = `${Math.round((failedCount/checkedCount)*100)}%`;
-      const elapsedSec = ((performance.now() - startTimeLocal)/1000);
-      document.getElementById('stat-elapsed-value').textContent = `${elapsedSec.toFixed(1)}s`;
-      document.getElementById('stat-speed-value').textContent = `${(checkedCount/elapsedSec).toFixed(1)}`;
+      document.getElementById('stat-speed-value').textContent = `${(checkedCount/((performance.now() - startTimeLocal)/1000)).toFixed(1)}`;
       // clear buffer and reset flag
       pendingItems.length = 0;
       flushScheduled = false;
@@ -186,9 +200,8 @@ checkBtn.addEventListener('click', async () => {
     }
     // flush any remaining items and final summary
     if (pendingItems.length) flushItems();
-    const finalElapsed = ((performance.now() - startTimeLocal) / 1000);
     const doneLine = document.createElement('div');
-    doneLine.textContent = `All ${totalDomains} domains checked in ${finalElapsed.toFixed(1)}s`;
+    doneLine.textContent = `All ${totalDomains} domains checked. Final time: ${document.getElementById('stat-elapsed-value').textContent}`;
     logsContainer.appendChild(doneLine);
     logsContainer.scrollTop = logsContainer.scrollHeight;
 
@@ -208,6 +221,11 @@ checkBtn.addEventListener('click', async () => {
     downloadButtonsContainer.classList.add('hidden');
     resultsPanel.classList.remove('border', 'border-gray-700'); // Remove border on error
   } finally {
+    // Stop the timer when done or on error
+    if (elapsedTimeInterval) {
+        clearInterval(elapsedTimeInterval);
+        elapsedTimeInterval = null;
+    }
     checkBtn.disabled = false;
     buttonTextSpan.innerHTML = 'Check Domains'; // Restore original text
     // Clear any previous error message on new run
