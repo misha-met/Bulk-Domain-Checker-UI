@@ -149,6 +149,34 @@
        border-bottom: 1px solid #2a2a2a !important; /* Re-apply header separator */
     }
 
+    /* DataTables Search Input Styling */
+    .dataTables_filter {
+        margin-bottom: 0.5rem; /* Add space below the search bar */
+    }
+    .dataTables_filter label {
+      color: #a0a0a0; /* Muted foreground */
+      font-size: 0.8rem; /* Match table font size */
+      font-weight: 500;
+      display: inline-flex; /* Align items vertically */
+      align-items: center; /* Align items vertically */
+    }
+    .dataTables_filter input[type="search"] {
+      background-color: #1f1f1f; /* Dark input background */
+      color: #EAEAEA; /* Light text */
+      border: 1px solid #333333; /* Subtle border */
+      border-radius: 0.375rem; /* Rounded corners */
+      padding: 0.15rem 0.4rem; /* Further reduced vertical padding */
+      margin-left: 0.5rem; /* Space between label and input */
+      font-size: 0.8rem; /* Match table font size */
+      line-height: 1.2; /* Reduce line height */
+      transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .dataTables_filter input[type="search"]:focus {
+      outline: none;
+      border-color: #4ade80; /* Highlight border on focus (optional) */
+      box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.3); /* Subtle focus ring (optional) */
+    }
+
     /* New Dashboard Styles */
     .text-foreground { color: #EAEAEA; } /* Match body text */
     .text-muted-foreground { color: #a0a0a0; }

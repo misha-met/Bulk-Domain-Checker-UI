@@ -34,7 +34,7 @@ checkBtn.addEventListener('click', async () => {
     scrollCollapse: true,
     paging: false,
     info: false,
-    searching: false,
+    searching: true, // Enable search box
     ordering: true,
     autoWidth: false,
     deferRender: true,       // improve performance on large datasets
