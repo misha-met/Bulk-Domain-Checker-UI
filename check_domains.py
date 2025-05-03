@@ -1,27 +1,56 @@
 #!/usr/bin/env python3
 import asyncio
 import argparse
-from aiohttp import ClientSession, ClientTimeout
+import httpx
+from httpx import AsyncClient, Limits, Timeout, HTTPError
+import urllib.parse
 from tqdm import tqdm
 from rich.console import Console
 from rich.table import Table
 from rich import box
+from collections import Counter
+import socket
 
-async def check(domain: str, session: ClientSession, timeout: ClientTimeout) -> tuple[bool, str]:
-    url = domain if domain.startswith(("http://", "https://")) else f"https://{domain}"
+async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
+    # Extract clean host (strip any path, query, or port)
+    parsed = urllib.parse.urlparse(domain)
+    raw = parsed.netloc or parsed.path
+    host = raw.split('/')[0].split(':')[0]
+    # Try both schemes with trailing slash for proper responses
+    urls = [f"https://{host}/", f"http://{host}/"]
+    last_err = None
+    for url in urls:
+        try:
+            # perform GET follow redirects; any response indicates reachability
+            resp = await client.get(url, follow_redirects=True)
+            return True, str(resp.status)
+        except Exception as e:
+            # record error and try next URL
+            last_err = e
+            continue
+    # TCP connect fallback on ports 443/80
+    for port in (443, 80):
+        try:
+            await asyncio.open_connection(host, port)
+            return True, f'TCP connect on port {port}'
+        except Exception:
+            pass
+    # DNS resolution fallback
     try:
-        async with session.head(url, timeout=timeout) as resp:
-            return resp.status < 400, str(resp.status)
-    except Exception as e:
-        return False, str(e)
+        socket.getaddrinfo(host, None)
+        return True, 'DNS resolution only'
+    except Exception:
+        return False, str(last_err)
 
 async def run(domains, timeout, workers):
-    timeout = ClientTimeout(total=timeout)
-    async with ClientSession(timeout=timeout) as session:
+    # configure HTTPX async client with HTTP/2 and limits
+    timeout_cfg = Timeout(timeout=timeout)
+    limits = Limits(max_connections=workers, max_keepalive_connections=workers)
+    async with AsyncClient(http2=True, verify=False, trust_env=False, timeout=timeout_cfg, limits=limits) as client:
         sem = asyncio.Semaphore(workers)
         async def bound_check(d):
             async with sem:
-                ok, detail = await check(d, session, timeout)
+                ok, detail = await check(d, client)
                 return d, ok, detail
 
         tasks = [bound_check(d) for d in domains]
@@ -30,6 +59,21 @@ async def run(domains, timeout, workers):
             results.append(await coro)
         return results
 
+async def run_stream(domains, timeout, workers):
+    """Async generator: yields (domain, ok, detail) as each check completes."""
+    timeout_cfg = Timeout(timeout=timeout)
+    limits = Limits(max_connections=workers, max_keepalive_connections=workers)
+    async with AsyncClient(http2=True, verify=False, trust_env=False, timeout=timeout_cfg, limits=limits) as client:
+        sem = asyncio.Semaphore(workers)
+        async def bound_check(d):
+            async with sem:
+                ok, detail = await check(d, client)
+                return d, ok, detail
+
+        tasks = [bound_check(d) for d in domains]
+        for coro in asyncio.as_completed(tasks):
+            d, ok, detail = await coro
+            yield d, ok, detail
 
 def main():
     p = argparse.ArgumentParser(description="Check responsiveness of domains")
@@ -46,6 +90,9 @@ def main():
     up = [(d, detail) for d, ok, detail in results if ok]
     down = [(d, detail) for d, ok, detail in results if not ok]
 
+    # Detailed breakdown of results by reason
+    reasons = Counter(detail for _, _, detail in results)
+    
     # display results in a rich table
     console = Console()
     table = Table(show_header=True, header_style="bold magenta", box=box.SIMPLE)
@@ -57,6 +104,14 @@ def main():
         table.add_row(d, status, detail)
     console.print(table)
     console.print(f"Responsive: [green]{len(up)}[/]    Unresponsive: [red]{len(down)}[/]")
+
+    # print breakdown of detail reasons
+    breakdown = Table(show_header=True, header_style="bold cyan")
+    breakdown.add_column("Reason", style="dim")
+    breakdown.add_column("Count", justify="right")
+    for reason, count in reasons.most_common():
+        breakdown.add_row(reason, str(count))
+    console.print(breakdown)
 
     # write log file
     with open(args.log_file, 'w') as logf:
