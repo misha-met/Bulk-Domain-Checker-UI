@@ -1,5 +1,6 @@
 // Domain check flow (default light mode, dark mode removed)
 const checkBtn = document.getElementById('check-btn');
+const buttonTextSpan = checkBtn.querySelector('.button-text'); // Get the span inside the button
 // const loader = document.getElementById('loader'); // removed loader element
 const resultsContainer = document.getElementById('results-container');
 const downloadButtonsContainer = document.getElementById('download-buttons-container'); // Get download buttons container
@@ -18,7 +19,7 @@ checkBtn.addEventListener('click', async () => {
 
   // UI state
   checkBtn.disabled = true;
-  checkBtn.textContent = 'Checking...';
+  buttonTextSpan.innerHTML = '<span class="btn-shine">Checking Domains</span>'; // Apply shine animation
   // Reset DataTable if exists
   if (dataTable) {
     dataTable.clear().destroy();
@@ -205,7 +206,7 @@ checkBtn.addEventListener('click', async () => {
     downloadButtonsContainer.classList.add('hidden');
   } finally {
     checkBtn.disabled = false;
-    checkBtn.textContent = 'Check Domains';
+    buttonTextSpan.innerHTML = 'Check Domains'; // Restore original text
     // Clear any previous error message on new run
     document.getElementById('fetch-error')?.remove();
   }

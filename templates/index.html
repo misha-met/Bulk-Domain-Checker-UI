@@ -243,6 +243,46 @@
         animation-delay: 0.6s; /* Start after cards */
         opacity: 0;
     }
+
+    /* Shine Animation for Button Text */
+    .btn-shine {
+      /* Removed absolute positioning to work inside the button */
+      /* padding: 12px 48px; /* Removed padding, button handles it */
+      color: #000; /* Fallback color - should match button text color */
+      /* Use a darker gradient for contrast on the white button */
+      background: linear-gradient(to right, #555 0%, #aaa 40%, #555 80%); 
+      background-size: 200% auto; /* Ensure gradient is large enough to animate */
+      background-position: 0;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shine 2s infinite linear;
+      animation-fill-mode: forwards;
+      -webkit-text-size-adjust: none;
+      font-weight: 600; /* Match button weight or adjust as needed */
+      /* font-size: 16px; /* Use button's font size */
+      text-decoration: none;
+      white-space: nowrap;
+      /* font-family: "Poppins", sans-serif; /* Use button's font family */
+      display: inline-block; /* Ensure it behaves correctly */
+    }
+
+    @-moz-keyframes shine {
+      0% { background-position: 200% center; } /* Start from right */
+      100% { background-position: -200% center; } /* Move to left */
+    }
+    @-webkit-keyframes shine {
+      0% { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+    @-o-keyframes shine {
+      0% { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+    @keyframes shine {
+       0% { background-position: 200% center; } /* Start gradient off-screen right */
+      100% { background-position: -200% center; } /* Move gradient off-screen left */
+    }
   </style>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
@@ -345,7 +385,9 @@
       <div class="w-full lg:w-1/2 p-4 border border-gray-700 rounded-md bg-black overflow-auto main-content-panel"> <!-- Added main-content-panel class -->
         <textarea id="domains-input" placeholder="Enter domains, one per line" class="textarea w-full textarea-bordered mb-3" rows="4"></textarea> <!-- Reduced margin and rows -->
 
-        <button id="check-btn" class="btn btn-primary w-full">Check Domains</button>
+        <button id="check-btn" class="btn btn-primary w-full">
+            <span class="button-text">Check Domains</span> <!-- Wrap text in span -->
+        </button>
         <!-- Download buttons removed from here -->
 
         <!-- Log Panel -->
