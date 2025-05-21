@@ -84,8 +84,8 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
     try:
         # Use the event loop's getaddrinfo to perform an async DNS lookup.
         await asyncio.get_event_loop().getaddrinfo(host, None)
-        # If DNS resolution succeeds, consider it responsive (but note it's DNS only).
-        return True, 'DNS resolution only'
+        # If DNS resolution succeeds, but HTTP/TCP failed, return False.
+        return False, 'DNS resolution only'
     except Exception as e:
         # If DNS resolution also fails, the domain is considered unresponsive.
         # Return False and the *last recorded error* from any previous step (or the DNS error).
