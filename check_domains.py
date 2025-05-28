@@ -15,8 +15,7 @@ import socket # Low-level networking interface (used for DNS lookup fallback)
 async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
     """Checks a single domain for responsiveness.
 
-    Tries HTTPS, then HTTP. If those fail, attempts TCP connection on 443/80.
-    As a last resort, checks DNS resolution.
+    Tries HTTPS, then HTTP. If both fail, checks DNS resolution for better error reporting.
 
     Args:
         domain: The domain name (can include http/https prefix, path, etc.).
@@ -24,7 +23,7 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
 
     Returns:
         A tuple containing:
-            - bool: True if the domain is considered responsive, False otherwise.
+            - bool: True if the domain serves HTTP content successfully, False otherwise.
             - str: A detail string explaining the result (e.g., status code, error message).
     """
     # Extract the clean hostname (netloc) from the input domain string.
@@ -38,58 +37,47 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
     last_err = None # Keep track of the last error encountered
 
     # --- Primary Check: HTTP GET requests --- 
+    connection_failed = True  # Track if we had any successful HTTP connections
     for url in urls:
         try:
             # Perform a GET request, but *do not* follow redirects initially.
             # This helps determine the initial status of the direct URL.
             resp = await client.get(url, follow_redirects=False)
+            connection_failed = False  # We got a response, even if it's an error
 
             # Consider any status code below 400 (1xx, 2xx, 3xx) as success/responsive.
             # We report the specific status code (e.g., 200, 301, 302) as the detail.
             if resp.status_code < 400:
                 return True, str(resp.status_code)
             else:
-                # If status code is 400 or higher, treat it as an error for this specific URL.
-                last_err = HTTPError(f"HTTP status {resp.status_code}")
-                continue # Try the next URL (e.g., try HTTP if HTTPS failed)
+                # If status code is 400 or higher, the server responded but with an error.
+                # This means the domain is technically "reachable" but not serving content properly.
+                # We'll return this as offline with the specific error code.
+                return False, f"HTTP {resp.status_code}"
         except Exception as e:
             # Catch any exception during the request (e.g., connection error, timeout, SSL error)
             last_err = e
             continue # Try the next URL
 
-    # --- Fallback Check 1: TCP Connection --- 
-    # If both HTTPS and HTTP GET requests failed, try a direct TCP connection.
-    for port in (443, 80): # Check standard HTTPS and HTTP ports
-        try:
-            # Attempt to open a TCP connection to the host on the specified port.
-            # Use a timeout matching the client's connect timeout.
-            _, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port), timeout=client.timeout.connect
-            )
-            # If connection succeeds, immediately close it.
-            writer.close()
-            await writer.wait_closed()
-            # Consider successful TCP connection as responsive.
-            return True, f'TCP connect on port {port}'
-        except asyncio.TimeoutError:
-            # Record timeout error specifically.
-            last_err = asyncio.TimeoutError(f"TCP connect timeout on port {port}")
-        except Exception as e:
-            # Record any other connection error.
-            last_err = e
-            pass # Continue to try the next port or the next fallback
+    # If we successfully connected via HTTP but got errors, we already returned above.
+    # Only proceed to TCP fallback if we had connection failures (not HTTP errors).
 
-    # --- Fallback Check 2: DNS Resolution --- 
-    # If all previous checks failed, try resolving the domain name via DNS.
+    # If we successfully connected via HTTP but got errors, we already returned above.
+    # Skip TCP fallback - for website checking, if HTTP doesn't work, it's not functional
+    if not connection_failed:
+        # We got HTTP responses but they were all errors - domain is reachable but not serving content
+        return False, str(last_err or "HTTP errors on all protocols")
+
+    # --- DNS Check for Better Error Reporting --- 
+    # If HTTP failed, check DNS to provide more specific error information
     try:
         # Use the event loop's getaddrinfo to perform an async DNS lookup.
         await asyncio.get_event_loop().getaddrinfo(host, None)
-        # If DNS resolution succeeds, consider it responsive (but note it's DNS only).
-        return True, 'DNS resolution only'
+        # DNS works but HTTP doesn't - provide the actual HTTP error
+        return False, str(last_err) if last_err else 'HTTP connection failed'
     except Exception as e:
-        # If DNS resolution also fails, the domain is considered unresponsive.
-        # Return False and the *last recorded error* from any previous step (or the DNS error).
-        return False, str(last_err or e) # Ensure an error string is always returned
+        # If DNS resolution also fails, the domain name doesn't exist or DNS is broken
+        return False, f'DNS resolution failed: {str(e)[:50]}...' if len(str(e)) > 50 else f'DNS resolution failed: {str(e)}'
 
 async def run(domains, timeout, workers):
     """Runs checks for a list of domains concurrently (CLI version).
