@@ -21,7 +21,11 @@ pip install -r requirements.txt
 
 ### Basic Usage
 ```bash
+# Check domains from text file
 python accurate_domain_checker.py domains.txt
+
+# Check domains from CSV file
+python accurate_domain_checker.py domains.csv
 ```
 
 ### Advanced Options
@@ -45,6 +49,7 @@ python accurate_domain_checker.py domains.txt \
 
 ## Input Format
 
+### Text File Format
 Create a text file with one domain per line:
 ```
 example.com
@@ -52,6 +57,26 @@ google.com
 stackoverflow.com
 github.com
 ```
+
+### CSV File Format
+Create a CSV file with `domain` and `host` columns:
+```csv
+domain,host
+google.com,www
+google.com,mail
+stackoverflow.com,www
+github.com,api
+example.com,test
+```
+
+The script will automatically combine the host and domain to create full domains like:
+- `www.google.com`
+- `mail.google.com`
+- `www.stackoverflow.com`
+- `api.github.com`
+- `test.example.com`
+
+**Note**: The CSV format is ideal when you have a list of base domains and want to check specific subdomains for each.
 
 ## Output
 

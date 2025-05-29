@@ -558,10 +558,74 @@ class AccurateDomainChecker:
         self.console.print(f"[green]CSV results exported to {csv_filename}[/green]")
 
 
+def read_domains_from_file(file_path: str) -> List[str]:
+    """Read domains from either TXT or CSV file format."""
+    domains = []
+    file_path = Path(file_path)
+    
+    # Check if it's a CSV file
+    if file_path.suffix.lower() == '.csv':
+        try:
+            with open(file_path, 'r', encoding='utf-8') as csvfile:
+                # Try to detect if it has headers
+                sample = csvfile.read(1024)
+                csvfile.seek(0)
+                
+                # Check if first line looks like headers
+                first_line = csvfile.readline().strip().lower()
+                csvfile.seek(0)
+                
+                has_headers = 'domain' in first_line and 'host' in first_line
+                
+                reader = csv.DictReader(csvfile) if has_headers else csv.reader(csvfile)
+                
+                if has_headers:
+                    # CSV with headers: domain, host columns
+                    for row in reader:
+                        domain = row.get('domain', '').strip()
+                        host = row.get('host', '').strip()
+                        
+                        if domain and host:
+                            # Combine host.domain
+                            full_domain = f"{host}.{domain}"
+                            domains.append(full_domain)
+                        elif domain:
+                            # Just domain without host
+                            domains.append(domain)
+                else:
+                    # CSV without headers - assume two columns: domain, host
+                    for row in reader:
+                        if len(row) >= 2:
+                            domain = row[0].strip()
+                            host = row[1].strip()
+                            
+                            if domain and host:
+                                # Combine host.domain
+                                full_domain = f"{host}.{domain}"
+                                domains.append(full_domain)
+                        elif len(row) == 1 and row[0].strip():
+                            # Single column - just domain
+                            domains.append(row[0].strip())
+                            
+        except Exception as e:
+            print(f"Error reading CSV file: {e}")
+            return []
+    else:
+        # TXT file - one domain per line
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                domains = [line.strip() for line in f if line.strip()]
+        except Exception as e:
+            print(f"Error reading TXT file: {e}")
+            return []
+    
+    return domains
+
+
 def main():
     """Main function."""
     parser = argparse.ArgumentParser(description="Accurate Domain Checker with Caching")
-    parser.add_argument("input_file", help="File containing domains to check (one per line)")
+    parser.add_argument("input_file", help="File containing domains to check (TXT: one per line, CSV: domain,host columns)")
     parser.add_argument("--concurrency", type=int, default=15, 
                        help="Number of concurrent checks (default: 15)")
     parser.add_argument("--timeout", type=int, default=10, 
@@ -575,16 +639,8 @@ def main():
     
     args = parser.parse_args()
     
-    # Read domains from file
-    try:
-        with open(args.input_file, 'r') as f:
-            domains = [line.strip() for line in f if line.strip()]
-    except FileNotFoundError:
-        print(f"Error: File '{args.input_file}' not found")
-        return
-    except Exception as e:
-        print(f"Error reading file: {e}")
-        return
+    # Read domains from file (supports both TXT and CSV)
+    domains = read_domains_from_file(args.input_file)
     
     if not domains:
         print("Error: No domains found in input file")
