@@ -11,6 +11,16 @@ env/
 # Log files
 *.log
 
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Export files
+domain_export_*.csv
+export_*.csv
+*.csv
+
 # OS generated files
 .DS_Store
 Thumbs.db

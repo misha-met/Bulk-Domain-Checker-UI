@@ -13,10 +13,32 @@ let dataTable;
 let currentResults = []; // Store results for download
 let elapsedTimeInterval = null; // Variable to hold the interval timer ID
 
+// Function to toggle redirect history visibility
+function toggleRedirectHistory(redirectId) {
+  const element = document.getElementById(redirectId);
+  const isHidden = element.style.display === 'none';
+  element.style.display = isHidden ? 'block' : 'none';
+  
+  // Update the arrow indicator and text
+  const badge = element.previousElementSibling;
+  if (badge && badge.textContent) {
+    if (isHidden) {
+      badge.textContent = badge.textContent.replace('Show Redirects ▼', 'Hide Redirects ▲');
+    } else {
+      badge.textContent = badge.textContent.replace('Hide Redirects ▲', 'Show Redirects ▼');
+    }
+  }
+}
+
 checkBtn.addEventListener('click', async () => {
   const raw = document.getElementById('domains-input').value;
   const domains = raw.split(/\s+/).filter(Boolean);
   const totalDomains = domains.length;
+  
+  // Get cache options
+  const useCache = document.getElementById('use-cache').checked;
+  const addToCache = document.getElementById('add-to-cache').checked;
+  
   if (!totalDomains) return;
 
   // UI state
@@ -28,6 +50,10 @@ checkBtn.addEventListener('click', async () => {
     dataTable.clear().destroy();
     dataTable = null; // Ensure it's fully reset
   }
+  
+  // Clear the table HTML content to ensure clean state
+  $('#results-table tbody').empty();
+  
   resultsContainer.classList.remove('hidden'); // Show the table container
   downloadButtonsContainer.classList.add('hidden'); // Hide download buttons initially
   currentResults = []; // Clear previous results
@@ -42,41 +68,23 @@ checkBtn.addEventListener('click', async () => {
     autoWidth: false,
     deferRender: true,       // improve performance on large datasets
     scroller: true,          // enable virtualized scrolling
+    data: [],                // Start with empty data array
+    columns: [
+      { title: "Domain", data: 0 },
+      { title: "Status", data: 1 },
+      { title: "Detail & Redirects", data: 2 },
+      { title: "Source", data: 3 }
+    ]
   });
 
-  const logPanel = document.getElementById('log-panel');
-  const logsContainer = document.getElementById('logs');
-  logsContainer.innerHTML = '';
-  logPanel.classList.remove('hidden');
+  // Terminal display removed - backend logging still functions
+  // const logPanel = document.getElementById('log-panel');
+  // const logsContainer = document.getElementById('logs');
+  // if (logsContainer) logsContainer.innerHTML = '';
+  // if (logPanel) logPanel.classList.remove('hidden');
 
-  // terminal-style preamble
-  const bannerLines = [
-    '  ___                 _         ___ _           _           ',
-    ' |   \\ ___ _ __  __ _(_)_ _    / __| |_  ___ __| |_____ _ _ ',
-    ' | |) / _ \\ \'  \\/ _\` | | \' \\  | (__| \' \\/ -_) _| / / -_) \'_|',
-    ' |___/\\___/_|_|_\\__,_|_|_||_|  \\___|_||_\\___\\__|_\\_\\___|_|  ',
-    '                                                             '
-  ];
-  for (const line of bannerLines) {
-    const pre = document.createElement('pre'); // Use <pre> tag
-    pre.textContent = line;
-    pre.style.margin = '0'; // Remove default <pre> margins
-    pre.style.lineHeight = '1'; // Adjust line height if needed
-    logsContainer.appendChild(pre);
-  }
-
-  // fake system info
-  const sysLines = [
-    'Initializing domain-checker daemon v1.4...',
-    `OS: ${navigator.platform}`,
-    `Timestamp: ${new Date().toLocaleString()}`,
-    ''
-  ];
-  for (const line of sysLines) {
-    const div = document.createElement('div');
-    div.textContent = line;
-    logsContainer.appendChild(div);
-  }
+  // Terminal banner and system info removed from UI
+  // Banner and system info generation skipped - backend logging still active
 
   // Initialize NEW dashboard metrics
   document.getElementById('stat-total-value').textContent = totalDomains;
@@ -114,7 +122,11 @@ checkBtn.addEventListener('click', async () => {
     const response = await fetch('/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domains })
+      body: JSON.stringify({ 
+        domains,
+        use_cache: useCache,
+        add_to_cache: addToCache
+      })
     });
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -133,31 +145,48 @@ checkBtn.addEventListener('click', async () => {
       const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
       for (const item of pendingItems) {
-        // logs - Terminal Style
-        const cmdDiv = document.createElement('div');
-        cmdDiv.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> <span class="text-blue-400">$</span> check_domain ${item.domain}`;
-        logsContainer.appendChild(cmdDiv);
-
-        const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
-        const statusColor = item.ok ? 'text-green-400' : 'text-red-400';
-        const resultDiv = document.createElement('div');
-        // Display the actual detail from the backend (status code, TCP connect, DNS, or error)
-        resultDiv.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> <span class="${statusColor}">Status: ${statusText}</span>, Detail: ${item.detail}`;
-        logsContainer.appendChild(resultDiv);
-
-        // prune logs to limit DOM size
-        if (logsContainer.children.length > 1000) {
-          logsContainer.removeChild(logsContainer.firstChild);
-        }
+        // Terminal logging removed - process data for table only
 
         // Store result for download
         currentResults.push(item);
 
-        // table row - Use item.detail directly for successful checks
+        // table row - Enhanced display with expandable redirect history
+        let tableDetail = item.detail;
+        let redirectDisplay = '';
+        
+        if (item.redirect_count && item.redirect_count > 0 && item.redirect_history) {
+          // Create a unique ID for this row's redirect details
+          const redirectId = `redirect-${item.domain.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
+          
+          // Create redirect badge with click handler - Updated for dark theme
+          const redirectBadge = `<span class="text-yellow-200 text-xs bg-yellow-800 px-2 py-1 rounded-full cursor-pointer" onclick="toggleRedirectHistory('${redirectId}')">Show Redirects ▼</span>`;
+          
+          // Create detailed redirect history (initially hidden) - Updated for dark theme
+          redirectDisplay = `
+            <div id="${redirectId}" class="redirect-history" style="display: none;">
+              <div style="font-weight: 600; margin-bottom: 8px; color: #fbbf24;">Redirect Chain:</div>
+              ${item.redirect_history.map((step, index) => {
+                const isLast = index === item.redirect_history.length - 1;
+                const statusColor = step.status_code < 400 ? '#4ade80' : '#f87171';
+                return `
+                  <div class="redirect-step">
+                    <div class="redirect-step-number">${step.step}</div>
+                    <div class="redirect-step-url">${step.url}</div>
+                    <div class="redirect-step-status" style="color: ${statusColor};">${step.status_code}</div>
+                  </div>
+                `;
+              }).join('')}
+            </div>`;
+          
+          tableDetail = `${item.detail} ${redirectBadge}${redirectDisplay}`;
+        }
+        
+        const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
         dataTable.row.add([
           item.domain,
           `<span class="badge ${item.ok ? 'badge-success' : 'badge-error'}">${statusText}</span>`,
-          item.detail // Show the actual detail (status code, TCP, DNS, error)
+          tableDetail, // Show the detail with expandable redirect history
+          item.from_cache ? '<span class="badge badge-outline text-blue-400">Cache</span>' : '<span class="badge badge-outline text-green-400">Live</span>'
         ]);
 
         // stats
@@ -177,8 +206,7 @@ checkBtn.addEventListener('click', async () => {
       // clear buffer and reset flag
       pendingItems.length = 0;
       flushScheduled = false;
-      // scroll logs
-      logsContainer.scrollTop = logsContainer.scrollHeight;
+      // Log scrolling removed since terminal is hidden
     }
     // stream each result line as JSON
     while (true) {
@@ -198,12 +226,9 @@ checkBtn.addEventListener('click', async () => {
         }
       }
     }
-    // flush any remaining items and final summary
+    // flush any remaining items - terminal completion message removed
     if (pendingItems.length) flushItems();
-    const doneLine = document.createElement('div');
-    doneLine.textContent = `All ${totalDomains} domains checked. Final time: ${document.getElementById('stat-elapsed-value').textContent}`;
-    logsContainer.appendChild(doneLine);
-    logsContainer.scrollTop = logsContainer.scrollHeight;
+    // Terminal completion logging removed since log panel is hidden
 
     // Show download buttons if there are results
     if (currentResults.length > 0) {
@@ -253,12 +278,24 @@ function downloadFile(filename, content, mimeType) {
 // Download CSV handler
 downloadCsvBtn.addEventListener('click', () => {
     if (!currentResults.length) return;
-    let csvContent = "Domain,Status,Detail\n"; // Header row
+    let csvContent = "Domain,Status,Detail,Redirects,Redirect_Chain,Source\n"; // Enhanced header row
     for (const item of currentResults) { // Changed from forEach to for...of
         const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
+        const source = item.from_cache ? 'Cache' : 'Live';
+        
         // Escape commas and quotes in detail
         const detail = `"${item.detail.replace(/"/g, '""')}"`;
-        csvContent += `${item.domain},${statusText},${detail}\n`;
+        
+        // Create redirect chain string
+        let redirectChain = '';
+        if (item.redirect_history && item.redirect_history.length > 1) {
+            redirectChain = item.redirect_history.map(step => 
+                `${step.status_code}:${step.url}`
+            ).join(' -> ');
+        }
+        redirectChain = `"${redirectChain.replace(/"/g, '""')}"`;
+        
+        csvContent += `${item.domain},${statusText},${detail},${item.redirect_count || 0},${redirectChain},${source}\n`;
     }
     downloadFile('domain_results.csv', csvContent, 'text/csv;charset=utf-8;');
 });
@@ -266,10 +303,28 @@ downloadCsvBtn.addEventListener('click', () => {
 // Download TXT handler
 downloadTxtBtn.addEventListener('click', () => {
     if (!currentResults.length) return;
-    let txtContent = "";
+    let txtContent = "Domain Check Results\n";
+    txtContent += "===================\n\n";
+    
     for (const item of currentResults) { // Changed from forEach to for...of
         const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
-        txtContent += `${item.domain}: ${statusText} - ${item.detail}\n`;
+        const source = item.from_cache ? 'Cache' : 'Live';
+        
+        txtContent += `Domain: ${item.domain}\n`;
+        txtContent += `Status: ${statusText}\n`;
+        txtContent += `Detail: ${item.detail}\n`;
+        txtContent += `Source: ${source}\n`;
+        
+        if (item.redirect_history && item.redirect_history.length > 1) {
+            txtContent += `Redirects: ${item.redirect_count}\n`;
+            txtContent += `Redirect Chain:\n`;
+            item.redirect_history.forEach((step, index) => {
+                const isLast = index === item.redirect_history.length - 1;
+                const arrow = isLast ? '' : ' →';
+                txtContent += `  ${step.step}. ${step.status_code} - ${step.url}${arrow}\n`;
+            });
+        }
+        txtContent += "\n";
     }
     downloadFile('domain_results.txt', txtContent, 'text/plain;charset=utf-8;');
 });

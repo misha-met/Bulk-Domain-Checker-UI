@@ -11,11 +11,12 @@ from rich.table import Table # For displaying results in a table format
 from rich import box # Box styles for Rich tables
 from collections import Counter # For counting occurrences of check results/details
 import socket # Low-level networking interface (used for DNS lookup fallback)
+import logging # For logging redirect history and domain checks
 
-async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
-    """Checks a single domain for responsiveness.
+async def check(domain: str, client: AsyncClient) -> tuple[bool, str, list]:
+    """Checks a single domain for responsiveness with redirect history tracking.
 
-    Tries HTTPS, then HTTP. If both fail, checks DNS resolution for better error reporting.
+    Tries HTTPS, then HTTP. Tracks and logs redirect chains. If both fail, checks DNS resolution for better error reporting.
 
     Args:
         domain: The domain name (can include http/https prefix, path, etc.).
@@ -24,7 +25,8 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
     Returns:
         A tuple containing:
             - bool: True if the domain serves HTTP content successfully, False otherwise.
-            - str: A detail string explaining the result (e.g., status code, error message).
+            - str: A detail string explaining the result (e.g., status code, error message, redirect info).
+            - list: Redirect history with step-by-step information.
     """
     # Extract the clean hostname (netloc) from the input domain string.
     # Handles cases like 'example.com', 'http://example.com/path', 'https://www.example.com:8080'
@@ -36,24 +38,76 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
     urls = [f"https://{host}", f"http://{host}"]
     last_err = None # Keep track of the last error encountered
 
-    # --- Primary Check: HTTP GET requests --- 
+    # --- Primary Check: HTTP GET requests with redirect tracking --- 
     connection_failed = True  # Track if we had any successful HTTP connections
     for url in urls:
         try:
-            # Perform a GET request, but *do not* follow redirects initially.
-            # This helps determine the initial status of the direct URL.
-            resp = await client.get(url, follow_redirects=False)
-            connection_failed = False  # We got a response, even if it's an error
-
-            # Consider any status code below 400 (1xx, 2xx, 3xx) as success/responsive.
-            # We report the specific status code (e.g., 200, 301, 302) as the detail.
-            if resp.status_code < 400:
-                return True, str(resp.status_code)
+            # Track redirects manually to capture redirect history
+            redirect_history = []
+            current_url = url
+            max_redirects = 10  # Prevent infinite redirect loops
+            redirect_count = 0
+            
+            while redirect_count < max_redirects:
+                # Perform a GET request without following redirects to track each step
+                resp = await client.get(current_url, follow_redirects=False)
+                connection_failed = False  # We got a response, even if it's an error
+                
+                # Debug logging for redirect detection
+                logging.info(f"Domain {domain}: Got status {resp.status_code} for {current_url}")
+                if 'location' in resp.headers:
+                    logging.info(f"Domain {domain}: Location header: {resp.headers.get('location')}")
+                
+                # Record this step in redirect history
+                step_info = {
+                    "url": current_url,
+                    "status_code": resp.status_code,
+                    "step": redirect_count + 1
+                }
+                redirect_history.append(step_info)
+                
+                # Check if this is a redirect
+                if resp.status_code in (301, 302, 303, 307, 308):
+                    location = resp.headers.get('location')
+                    if location:
+                        # Handle relative URLs
+                        if location.startswith('/'):
+                            current_url = urllib.parse.urljoin(current_url, location)
+                        else:
+                            current_url = location
+                        
+                        redirect_count += 1
+                        
+                        # Log redirect step
+                        logging.info(f"Domain {domain}: Redirect {redirect_count} - {resp.status_code} -> {current_url}")
+                    else:
+                        break
+                else:
+                    # Final response (not a redirect)
+                    break
+            
+            # Log redirect chain if any redirects occurred
+            if len(redirect_history) > 1:
+                logging.info(f"Domain {domain}: {len(redirect_history) - 1} redirects total")
+                for step in redirect_history:
+                    logging.info(f"  Step {step['step']}: {step['status_code']} - {step['url']}")
+            
+            # Get status codes
+            initial_status = redirect_history[0]['status_code']
+            final_status = redirect_history[-1]['status_code']
+            
+            # For display purposes, show the initial status (especially important for redirects)
+            display_status = initial_status
+            
+            # Consider any final status code below 400 (1xx, 2xx, 3xx) as success/responsive.
+            if final_status < 400:
+                detail = str(display_status)
+                return True, detail, redirect_history
             else:
-                # If status code is 400 or higher, the server responded but with an error.
+                # If final status code is 400 or higher, the server responded but with an error.
                 # This means the domain is technically "reachable" but not serving content properly.
-                # We'll return this as offline with the specific error code.
-                return False, f"HTTP {resp.status_code}"
+                detail = f"HTTP {display_status}"
+                return False, detail, redirect_history
         except Exception as e:
             # Catch any exception during the request (e.g., connection error, timeout, SSL error)
             last_err = e
@@ -66,7 +120,7 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
     # Skip TCP fallback - for website checking, if HTTP doesn't work, it's not functional
     if not connection_failed:
         # We got HTTP responses but they were all errors - domain is reachable but not serving content
-        return False, str(last_err or "HTTP errors on all protocols")
+        return False, str(last_err or "HTTP errors on all protocols"), []
 
     # --- DNS Check for Better Error Reporting --- 
     # If HTTP failed, check DNS to provide more specific error information
@@ -74,10 +128,10 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str]:
         # Use the event loop's getaddrinfo to perform an async DNS lookup.
         await asyncio.get_event_loop().getaddrinfo(host, None)
         # DNS works but HTTP doesn't - provide the actual HTTP error
-        return False, str(last_err) if last_err else 'HTTP connection failed'
+        return False, str(last_err) if last_err else 'HTTP connection failed', []
     except Exception as e:
         # If DNS resolution also fails, the domain name doesn't exist or DNS is broken
-        return False, f'DNS resolution failed: {str(e)[:50]}...' if len(str(e)) > 50 else f'DNS resolution failed: {str(e)}'
+        return False, f'DNS resolution failed: {str(e)[:50]}...' if len(str(e)) > 50 else f'DNS resolution failed: {str(e)}', []
 
 async def run(domains, timeout, workers):
     """Runs checks for a list of domains concurrently (CLI version).
@@ -104,8 +158,8 @@ async def run(domains, timeout, workers):
         # Define a helper function to wrap the check call with the semaphore
         async def bound_check(d):
             async with sem: # Acquire the semaphore before running the check
-                ok, detail = await check(d, client)
-                return d, ok, detail # Return result tuple
+                ok, detail, redirect_history = await check(d, client)
+                return d, ok, detail, redirect_history # Return result tuple with redirect history
             # Semaphore is released automatically upon exiting the 'async with' block
 
         # Create a list of tasks (coroutines) for checking each domain
@@ -125,7 +179,7 @@ async def run_stream(domains, timeout, workers):
         workers: Maximum number of concurrent checks.
 
     Yields:
-        Tuples of (domain, ok, detail) as each check finishes.
+        Tuples of (domain, ok, detail, redirect_history) as each check finishes.
     """
     # Configure the httpx AsyncClient (same configuration as the 'run' function)
     timeout_cfg = Timeout(timeout=timeout)
@@ -137,15 +191,15 @@ async def run_stream(domains, timeout, workers):
         # Define the semaphore-bound check helper function
         async def bound_check(d):
             async with sem:
-                ok, detail = await check(d, client)
-                return d, ok, detail
+                ok, detail, redirect_history = await check(d, client)
+                return d, ok, detail, redirect_history
 
         # Create tasks for all domains
         tasks = [bound_check(d) for d in domains]
         # Use asyncio.as_completed to iterate over tasks as they finish
         for coro in asyncio.as_completed(tasks):
-            d, ok, detail = await coro # Get the result from the completed coroutine
-            yield d, ok, detail # Yield the result immediately
+            d, ok, detail, redirect_history = await coro # Get the result from the completed coroutine
+            yield d, ok, detail, redirect_history # Yield the result immediately
 
 def main():
     """Main function for the command-line interface."""
@@ -156,6 +210,16 @@ def main():
     p.add_argument("--workers", type=int, default=100, help="Maximum number of concurrent checks (default: 100).")
     p.add_argument("--log-file", default="domain_check.log", help="Path to write detailed log output (default: domain_check.log).")
     args = p.parse_args()
+
+    # Set up logging for redirect history
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(args.log_file),
+            logging.StreamHandler()
+        ]
+    )
 
     # Read domains from the specified file
     try:
@@ -174,11 +238,11 @@ def main():
     results = asyncio.run(run(domains, args.timeout, args.workers))
 
     # Separate results into responsive (up) and unresponsive (down)
-    up = [(d, detail) for d, ok, detail in results if ok]
-    down = [(d, detail) for d, ok, detail in results if not ok]
+    up = [(d, detail) for d, ok, detail, redirect_history in results if ok]
+    down = [(d, detail) for d, ok, detail, redirect_history in results if not ok]
 
     # Count the occurrences of each unique result detail string
-    reasons = Counter(detail for _, _, detail in results)
+    reasons = Counter(detail for _, _, detail, _ in results)
 
     # --- Display Results using Rich --- 
     console = Console()
@@ -190,7 +254,7 @@ def main():
     table.add_column("Detail", overflow="fold") # Allow detail folding
 
     # Populate the results table
-    for d, ok, detail in sorted(results): # Sort results alphabetically by domain
+    for d, ok, detail, redirect_history in sorted(results): # Sort results alphabetically by domain
         status = "[green]Online[/]" if ok else "[red]Offline[/]" # Use Rich markup for colors
         table.add_row(d, status, detail)
 
@@ -218,7 +282,7 @@ def main():
             logf.write(f"# Total: {len(results)}, Responsive: {len(up)}, Unresponsive: {len(down)}\n")
             logf.write("#------------------------------------\n")
             # Write each result, sorted alphabetically, with a symbol indicator
-            for d, ok, detail in sorted(results):
+            for d, ok, detail, redirect_history in sorted(results):
                 symbol = '✔' if ok else '✖'
                 logf.write(f"{symbol} {d} ({detail})\n")
         console.print(f"[dim]Detailed log written to {args.log_file}[/]")

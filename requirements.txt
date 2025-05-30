@@ -12,3 +12,4 @@ rich>=12.0
 uvicorn>=0.17.0
 # asgiref: Provides ASGI utilities, including the WSGI-to-ASGI adapter.
 asgiref>=3.8.0
+# SQLite support is built into Python, no additional package needed for database caching
