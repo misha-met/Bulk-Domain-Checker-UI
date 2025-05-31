@@ -45,6 +45,11 @@
     .textarea { /* Add this rule */
         resize: none; 
     }
+    .textarea:focus {
+        outline: none;
+        border-color: #555555; /* Subtle border change on focus */
+        box-shadow: none; /* Remove focus ring */
+    }
     .btn:hover { 
       background-color: #2a2a2a; 
       transform: translateY(-1px); /* Subtle lift on hover */
@@ -169,14 +174,21 @@
     /* DataTables Search Input Styling */
     .dataTables_filter {
         margin-bottom: 0.5rem; /* Add space below the search bar */
+        display: flex !important; /* Override DataTables default */
+        justify-content: space-between; /* Spread items across */
+        align-items: center; /* Align vertically */
+        gap: 1rem; /* Space between export button and search */
     }
+    
     .dataTables_filter label {
       color: #a0a0a0; /* Muted foreground */
       font-size: 0.8rem; /* Match table font size */
       font-weight: 500;
       display: inline-flex; /* Align items vertically */
       align-items: center; /* Align items vertically */
+      margin: 0; /* Remove default margin */
     }
+    
     .dataTables_filter input[type="search"] {
       background-color: #1f1f1f; /* Dark input background */
       color: #EAEAEA; /* Light text */
@@ -188,10 +200,31 @@
       line-height: 1.2; /* Reduce line height */
       transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
     }
+    
     .dataTables_filter input[type="search"]:focus {
       outline: none;
-      border-color: #4ade80; /* Highlight border on focus (optional) */
-      box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.3); /* Subtle focus ring (optional) */
+      border-color: #555555; /* Subtle border change on focus */
+      box-shadow: none; /* Remove focus ring */
+    }
+    
+    .dataTables_filter input[type="search"]::placeholder {
+      color: #666666;
+      font-style: italic;
+    }
+    
+    /* Export DB Button Styling */
+    .export-db-container {
+        display: flex;
+        order: -1; /* Move to the left */
+        flex-shrink: 0; /* Don't shrink */
+    }
+    
+    /* Disable hover animations for export DB button */
+    .btn-export-db:hover {
+        transform: none !important; /* Override any transform animations */
+        box-shadow: none !important; /* Override any shadow animations */
+        background-color: #ffffff !important; /* Keep same background */
+        border-color: #ffffff !important; /* Keep same border */
     }
 
     /* New Dashboard Styles */
@@ -602,8 +635,8 @@
         </div>
         <!-- Download Buttons Container -->
         <div id="download-buttons-container" class="mt-2 flex justify-end gap-2 hidden"> <!-- Added container, hidden initially, flex layout -->
-            <button id="download-csv-btn" class="btn btn-primary btn-sm">Download CSV</button>
-            <button id="download-txt-btn" class="btn btn-primary btn-sm">Download TXT</button>
+            <button id="download-csv-btn" class="btn btn-primary btn-sm">Export to CSV</button>
+            <button id="download-txt-btn" class="btn btn-primary btn-sm">Export to TXT</button>
         </div>
       </div>
     </div>

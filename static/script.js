@@ -93,6 +93,9 @@ checkBtn.addEventListener('click', async () => {
     ]
   });
 
+  // Add export database button to the filter row
+  addExportButtonToFilter();
+
   // Terminal display removed - backend logging still functions
   // const logPanel = document.getElementById('log-panel');
   // const logsContainer = document.getElementById('logs');
@@ -347,6 +350,101 @@ downloadTxtBtn.addEventListener('click', () => {
         txtContent += "\n";
     }
     downloadFile('domain_results.txt', txtContent, 'text/plain;charset=utf-8;');
+});
+
+// Function to create export database button
+function createExportDbButton() {
+  const exportContainer = document.createElement('div');
+  exportContainer.className = 'export-db-container';
+  
+  const exportBtn = document.createElement('button');
+  exportBtn.id = 'export-db-btn';
+  exportBtn.className = 'btn-export-db btn btn-primary btn-sm';
+  exportBtn.textContent = 'Export Database';
+  exportBtn.title = 'Export database cache to CSV';
+  
+  exportBtn.addEventListener('click', async () => {
+    try {
+      exportBtn.disabled = true;
+      exportBtn.textContent = 'Exporting...';
+      
+      const response = await fetch('/export-cache', {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/csv'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create filename with timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `domain_cache_export_${timestamp}.csv`;
+      
+      // Create download link
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert(`Export failed: ${error.message}`);
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = 'Export Database';
+    }
+  });
+  
+  exportContainer.appendChild(exportBtn);
+  return exportContainer;
+}
+
+// Function to add export button to DataTables filter row
+function addExportButtonToFilter() {
+  // Use a small delay to ensure DataTables has rendered the filter
+  setTimeout(() => {
+    const filterDiv = document.querySelector('.dataTables_filter');
+    if (filterDiv && !document.getElementById('export-db-btn')) {
+      const exportContainer = createExportDbButton();
+      filterDiv.appendChild(exportContainer);
+      
+      // Update search input placeholder and remove label text
+      const searchLabel = filterDiv.querySelector('label');
+      const searchInput = filterDiv.querySelector('input[type="search"]');
+      if (searchLabel && searchInput) {
+        // Remove the "Search:" text from the label
+        searchLabel.childNodes.forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            node.textContent = '';
+          }
+        });
+        searchInput.placeholder = 'Search results...';
+      }
+    }
+  }, 100);
+}
+
+// Call to add export button to filter row on DataTable init
+$(document).ready(function() {
+  // Initialize DataTable first
+  dataTable = $('#results-table').DataTable({
+    // ... your existing DataTable options ...
+  });
+  
+  // Then add the export button
+  addExportButtonToFilter();
 });
 
 // Subtle animation for details opening (insert CSS)

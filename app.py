@@ -179,6 +179,93 @@ def clear_cache():
         logging.exception("Error clearing cache")
         return jsonify({"error": "Failed to clear cache", "detail": str(e)}), 500
 
+# API endpoint for exporting database cache to CSV
+@app.route('/export-cache', methods=['GET'])
+def export_cache():
+    """Exports the entire database cache to CSV format."""
+    try:
+        from io import StringIO
+        import csv
+        from datetime import datetime
+        
+        # Get all cached results
+        cache_data = cache.get_all_cached_results()
+        
+        if not cache_data:
+            return jsonify({"error": "No cached data available for export"}), 404
+        
+        # Create CSV content
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        headers = [
+            'Domain',
+            'Status',
+            'Detail',
+            'Redirect_Count',
+            'Final_Status_Code',
+            'Redirect_Chain',
+            'Created_At',
+            'Updated_At'
+        ]
+        writer.writerow(headers)
+        
+        # Write data rows
+        for record in cache_data:
+            status = 'Online' if record['is_ok'] else 'Offline'
+            redirect_chain = ''
+            
+            # Parse redirect history if available
+            if record.get('redirect_history'):
+                try:
+                    import json
+                    redirect_history = json.loads(record['redirect_history'])
+                    if redirect_history and len(redirect_history) > 1:
+                        redirect_chain = ' -> '.join([
+                            f"{step.get('status_code', '?')}:{step.get('url', '')}"
+                            for step in redirect_history
+                        ])
+                except (json.JSONDecodeError, TypeError):
+                    redirect_chain = record.get('redirect_info', '')
+            
+            row = [
+                record['domain'],
+                status,
+                record['detail'] or '',
+                record.get('redirect_count', 0),
+                record.get('final_status_code', ''),
+                redirect_chain,
+                record.get('created_at', ''),
+                record.get('updated_at', '')
+            ]
+            writer.writerow(row)
+        
+        # Prepare response
+        csv_content = output.getvalue()
+        output.close()
+        
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'domain_cache_export_{timestamp}.csv'
+        
+        # Create Flask response
+        response = Response(
+            csv_content,
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename={filename}',
+                'Content-Type': 'text/csv; charset=utf-8'
+            }
+        )
+        
+        logging.info(f"Exported {len(cache_data)} cache records to CSV")
+        return response
+        
+    except Exception as e:
+        logging.exception("Error exporting cache")
+        return jsonify({"error": "Failed to export cache", "detail": str(e)}), 500
+
 # Entry point for running the script directly
 if __name__ == "__main__":
     # Import Uvicorn, an ASGI server

@@ -248,6 +248,40 @@ class DomainCache:
             'database_size_mb': round(db_size / (1024 * 1024), 2)
         }
     
+    def get_all_cached_results(self) -> List[Dict[str, Any]]:
+        """Get all cached results from the database.
+        
+        Returns:
+            List of dictionaries containing all cached domain results
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT domain, is_ok, detail, status_code, redirect_info, redirect_history, 
+                   redirect_count, final_status_code, created_at, updated_at
+            FROM domain_cache 
+            ORDER BY updated_at DESC
+        """)
+        
+        results = []
+        for row in cursor.fetchall():
+            result = {
+                'domain': row['domain'],
+                'is_ok': bool(row['is_ok']),
+                'detail': row['detail'],
+                'status_code': row['status_code'],
+                'redirect_info': row['redirect_info'],
+                'redirect_history': row['redirect_history'],
+                'redirect_count': row['redirect_count'] or 0,
+                'final_status_code': row['final_status_code'],
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at']
+            }
+            results.append(result)
+        
+        return results
+    
     def cleanup_old_entries(self, max_age_days: int = 30) -> int:
         """Remove cache entries older than specified days.
         
