@@ -209,7 +209,7 @@
     
     .dataTables_filter input[type="search"]::placeholder {
       color: #666666;
-      font-style: italic;
+      font-style: normal;
     }
     
     /* Export DB Button Styling */
@@ -473,6 +473,140 @@
       margin-left: 8px;
       flex-shrink: 0;
     }
+
+    /* Domain Details Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: opacity 0.3s ease;
+    }
+    
+    .modal-overlay.hidden {
+      display: none;
+    }
+    
+    .modal-content {
+      background-color: #1f1f1f;
+      border: 1px solid #333333;
+      border-radius: 0.5rem;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+      animation: modalSlideIn 0.3s ease-out;
+    }
+    
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #333333;
+      background-color: #111111;
+      border-radius: 0.5rem 0.5rem 0 0;
+    }
+    
+    .modal-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #EAEAEA;
+      margin: 0;
+    }
+    
+    .modal-close-btn {
+      background: none;
+      border: none;
+      color: #a0a0a0;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s ease;
+    }
+    
+    .modal-close-btn:hover {
+      color: #ffffff;
+    }
+    
+    .modal-body {
+      padding: 1.5rem;
+    }
+    
+    .detail-section {
+      margin-bottom: 1rem;
+    }
+    
+    .detail-section:last-child {
+      margin-bottom: 0;
+    }
+    
+    .detail-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #a0a0a0;
+      margin-bottom: 0.25rem;
+    }
+    
+    .detail-value {
+      color: #EAEAEA;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+    
+    .detail-code {
+      font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+      background-color: #111111;
+      border: 1px solid #333333;
+      border-radius: 0.375rem;
+      padding: 0.75rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    
+    /* Clickable table rows */
+    .dataTables_wrapper tbody tr {
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    
+    .dataTables_wrapper tbody tr:hover {
+      background-color: rgba(255, 255, 255, 0.05) !important;
+    }
+    
+    /* Truncated text indicator */
+    .text-truncated {
+      position: relative;
+    }
+    
+    .text-truncated::after {
+      content: "...";
+      color: #666666;
+    }
   </style>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
@@ -642,6 +776,39 @@
     </div>
 
   </div> <!-- End main container -->
+
+  <!-- Domain Details Modal -->
+  <div id="domain-details-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-domain-title" class="modal-title">Domain Details</h3>
+        <button id="modal-close-btn" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-section">
+          <label class="detail-label">Domain:</label>
+          <span id="modal-domain-name" class="detail-value"></span>
+        </div>
+        <div class="detail-section">
+          <label class="detail-label">Status:</label>
+          <span id="modal-status" class="detail-value"></span>
+        </div>
+        <div class="detail-section">
+          <label class="detail-label">Details:</label>
+          <div id="modal-details" class="detail-value detail-code"></div>
+        </div>
+        <div class="detail-section">
+          <label class="detail-label">Source:</label>
+          <span id="modal-source" class="detail-value"></span>
+        </div>
+        <div id="modal-redirect-section" class="detail-section hidden">
+          <label class="detail-label">Redirect Chain:</label>
+          <div id="modal-redirect-details" class="detail-value"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/script.js"></script>
 </body>
 </html>

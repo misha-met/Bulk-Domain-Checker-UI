@@ -87,7 +87,8 @@ class DomainCache:
             return True
         
         # Cache HTTP error responses (4xx, 5xx) but not connection/DNS errors
-        if detail.startswith('HTTP ') and any(code in detail for code in ['400', '401', '403', '404', '500', '502', '503']):
+        # Check if detail is a numeric status code (new format) or starts with HTTP (old format)
+        if (detail.isdigit() and int(detail) >= 400) or (detail.startswith('HTTP ') and any(code in detail for code in ['400', '401', '403', '404', '500', '502', '503'])):
             return True
         
         # Don't cache DNS failures, connection errors, timeouts, etc.

@@ -95,6 +95,9 @@ checkBtn.addEventListener('click', async () => {
 
   // Add export database button to the filter row
   addExportButtonToFilter();
+  
+  // Add click handlers to table rows
+  addTableRowClickHandlers();
 
   // Terminal display removed - backend logging still functions
   // const logPanel = document.getElementById('log-panel');
@@ -170,42 +173,20 @@ checkBtn.addEventListener('click', async () => {
         currentResults.push(item);
 
         // Prepare separate code and redirect columns
-        let codeColumn = item.detail; // Status code or error message
+        let codeColumn = truncateText(item.detail); // Truncate long error messages
         let redirectColumn = ''; // Redirect information
         
         if (item.redirect_count && item.redirect_count > 0 && item.redirect_history) {
-          // Create a unique ID for this row's redirect details
-          const redirectId = `redirect-${item.domain.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
-          
-          // Create redirect badge with click handler - Updated for dark theme
-          const redirectBadge = `<span class="text-yellow-200 text-xs bg-yellow-800 px-2 py-1 rounded-full cursor-pointer" onclick="toggleRedirectHistory('${redirectId}')">Show Redirects ▼</span>`;
-          
-          // Create detailed redirect history (initially hidden) - Updated for dark theme
-          const redirectDetails = `
-            <div id="${redirectId}" class="redirect-history" style="display: none;">
-              <div style="font-weight: 600; margin-bottom: 8px; color: #fbbf24;">Redirect Chain:</div>
-              ${item.redirect_history.map((step, index) => {
-                const isLast = index === item.redirect_history.length - 1;
-                const statusColor = step.status_code < 400 ? '#4ade80' : '#f87171';
-                return `
-                  <div class="redirect-step">
-                    <div class="redirect-step-number">${step.step}</div>
-                    <div class="redirect-step-url">${step.url}</div>
-                    <div class="redirect-step-status" style="color: ${statusColor};">${step.status_code}</div>
-                  </div>
-                `;
-              }).join('')}
-            </div>`;
-          
-          redirectColumn = `${redirectBadge}${redirectDetails}`;
+          // Simplified redirect info for table
+          redirectColumn = `<span class="badge badge-outline text-yellow-400">${item.redirect_count} redirect${item.redirect_count > 1 ? 's' : ''}</span>`;
         }
         
         const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
         dataTable.row.add([
           item.domain,
           `<span class="badge ${item.ok ? 'badge-success' : 'badge-error'}">${statusText}</span>`,
-          codeColumn, // Status code or error message
-          redirectColumn, // Redirect information
+          codeColumn, // Truncated status code or error message
+          redirectColumn, // Simplified redirect information
           item.from_cache ? '<span class="badge badge-outline text-blue-400">Cache</span>' : '<span class="badge badge-outline text-green-400">Live</span>'
         ]);
 
@@ -215,6 +196,8 @@ checkBtn.addEventListener('click', async () => {
       }
       // redraw table once per batch
       dataTable.draw(false);
+      // Add click handlers to new rows
+      addTableRowClickHandlers();
       // update metrics display
       document.getElementById('stat-checked-value').textContent = checkedCount;
       document.getElementById('stat-checked-percent').textContent = `${Math.round((checkedCount/totalDomains)*100)}%`;
@@ -454,3 +437,135 @@ style.innerHTML = `
 .animate-fadeIn { animation: fadeIn 0.3s ease-in-out; }
 `;
 document.head.appendChild(style);
+
+// Modal functionality for domain details
+function showDomainDetails(domainData) {
+  const modal = document.getElementById('domain-details-modal');
+  const domainName = document.getElementById('modal-domain-name');
+  const status = document.getElementById('modal-status');
+  const details = document.getElementById('modal-details');
+  const source = document.getElementById('modal-source');
+  const redirectSection = document.getElementById('modal-redirect-section');
+  const redirectDetails = document.getElementById('modal-redirect-details');
+
+  // Populate modal with data
+  domainName.textContent = domainData.domain;
+  
+  const statusText = domainData.ok ? 'Online' : (domainData.detail.includes('Error') ? 'Error' : 'Offline');
+  const statusClass = domainData.ok ? 'badge-success' : 'badge-error';
+  status.innerHTML = `<span class="badge ${statusClass}">${statusText}</span>`;
+  
+  details.textContent = domainData.detail;
+  
+  const sourceText = domainData.from_cache ? 'Cache' : 'Live';
+  const sourceClass = domainData.from_cache ? 'text-blue-400' : 'text-green-400';
+  source.innerHTML = `<span class="badge badge-outline ${sourceClass}">${sourceText}</span>`;
+
+  // Handle redirect information
+  if (domainData.redirect_count && domainData.redirect_count > 0 && domainData.redirect_history) {
+    redirectSection.classList.remove('hidden');
+    
+    const redirectHtml = domainData.redirect_history.map((step, index) => {
+      const statusColor = step.status_code < 400 ? '#4ade80' : '#f87171';
+      return `
+        <div class="redirect-step" style="margin: 8px 0; padding: 8px; background-color: #111111; border-radius: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="background-color: #4ade80; color: #000000; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600;">
+              ${step.step}
+            </div>
+            <div style="flex-grow: 1; font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace; font-size: 0.8rem; word-break: break-all; color: #60a5fa;">
+              ${step.url}
+            </div>
+            <div style="color: ${statusColor}; font-weight: 600; font-size: 0.875rem;">
+              ${step.status_code}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    redirectDetails.innerHTML = redirectHtml;
+  } else {
+    redirectSection.classList.add('hidden');
+  }
+
+  // Show modal
+  modal.classList.remove('hidden');
+}
+
+function hideDomainDetails() {
+  const modal = document.getElementById('domain-details-modal');
+  modal.classList.add('hidden');
+}
+
+// Add modal event listeners
+document.addEventListener('DOMContentLoaded', function() {
+  const modal = document.getElementById('domain-details-modal');
+  const closeBtn = document.getElementById('modal-close-btn');
+  
+  // Close modal when clicking close button
+  closeBtn.addEventListener('click', hideDomainDetails);
+  
+  // Close modal when clicking overlay (but not modal content)
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      hideDomainDetails();
+    }
+  });
+  
+  // Close modal with Escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+      hideDomainDetails();
+    }
+  });
+});
+
+// Function to truncate text for table display
+function truncateText(text, maxLength = 30) {
+  if (!text) return text;
+  
+  // Clean up status codes - remove "HTTP " prefix and "(HTTP/1.1 fallback)" suffix
+  let cleaned = text.replace(/^HTTP\s+/, '').replace(/\s*\(HTTP\/1\.1 fallback\)/, '');
+  
+  // If it's just a number now (status code), return it as-is
+  if (/^\d+$/.test(cleaned)) {
+    return cleaned;
+  }
+  
+  if (cleaned.length <= maxLength) return cleaned;
+  
+  // Special handling for common error patterns
+  if (cleaned.includes('DNS resolution failed')) {
+    return 'DNS resolution failed';
+  }
+  if (cleaned.includes('Connection timeout')) {
+    return 'Connection timeout';
+  }
+  if (cleaned.includes('Connection refused')) {
+    return 'Connection refused';
+  }
+  if (cleaned.includes('SSL')) {
+    return 'SSL error';
+  }
+  if (cleaned.includes('Certificate')) {
+    return 'Certificate error';
+  }
+  
+  return cleaned.substring(0, maxLength) + '...';
+}
+
+// Function to add click handlers to table rows for modal display
+function addTableRowClickHandlers() {
+  // Remove existing click handlers to prevent duplicates
+  $('#results-table tbody').off('click', 'tr');
+  
+  // Add click handler for table rows
+  $('#results-table tbody').on('click', 'tr', function() {
+    const rowIndex = $(this).index();
+    if (rowIndex < currentResults.length) {
+      const domainData = currentResults[rowIndex];
+      showDomainDetails(domainData);
+    }
+  });
+}

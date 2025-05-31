@@ -106,12 +106,44 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str, list]:
             else:
                 # If final status code is 400 or higher, the server responded but with an error.
                 # This means the domain is technically "reachable" but not serving content properly.
-                detail = f"HTTP {display_status}"
+                detail = str(display_status)
                 return False, detail, redirect_history
         except Exception as e:
-            # Catch any exception during the request (e.g., connection error, timeout, SSL error)
-            last_err = e
-            continue # Try the next URL
+            # Check if this is an HTTP/2 stream reset error
+            if "StreamReset" in str(e) and hasattr(client, '_transport') and client._transport is not None:
+                # HTTP/2 stream reset detected - try with HTTP/1.1 fallback
+                logging.info(f"Domain {domain}: HTTP/2 StreamReset detected, attempting HTTP/1.1 fallback")
+                try:
+                    # Create a temporary HTTP/1.1-only client for this request
+                    timeout_cfg = Timeout(timeout=client.timeout.read if client.timeout else 5.0)
+                    limits = Limits(max_connections=1, max_keepalive_connections=1)
+                    async with AsyncClient(http2=False, verify=False, trust_env=False, timeout=timeout_cfg, limits=limits) as fallback_client:
+                        # Retry the request with HTTP/1.1
+                        resp = await fallback_client.get(url, follow_redirects=False)
+                        connection_failed = False
+                        
+                        # Record this successful fallback
+                        step_info = {
+                            "url": url,
+                            "status_code": resp.status_code,
+                            "step": 1
+                        }
+                        redirect_history = [step_info]
+                        
+                        if resp.status_code < 400:
+                            detail = f"{resp.status_code} (HTTP/1.1 fallback)"
+                            return True, detail, redirect_history
+                        else:
+                            detail = f"{resp.status_code} (HTTP/1.1 fallback)"
+                            return False, detail, redirect_history
+                except Exception as fallback_err:
+                    logging.info(f"Domain {domain}: HTTP/1.1 fallback also failed: {fallback_err}")
+                    last_err = e  # Keep original error
+                    continue
+            else:
+                # Catch any other exception during the request (e.g., connection error, timeout, SSL error)
+                last_err = e
+                continue # Try the next URL
 
     # If we successfully connected via HTTP but got errors, we already returned above.
     # Only proceed to TCP fallback if we had connection failures (not HTTP errors).
