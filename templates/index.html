@@ -82,11 +82,14 @@
     /* DataTables Dark Style */
     .dataTables_wrapper {
       width: 100%; /* Ensure wrapper fits container */
+      position: relative; /* Change from any absolute positioning */
+      margin-top: 0.5rem; /* Add top margin for spacing */
     }
     table.dataTable {
       color: #EAEAEA;
       border-collapse: separate; /* Needed for spacing */
       border-spacing: 0;
+      margin-top: 0.5rem; /* Add space between filter and table */
     }
     .dataTables_scrollHead,
     .dataTables_scrollHeadInner table {
@@ -171,28 +174,29 @@
        border-bottom: 1px solid #2a2a2a !important; /* Re-apply header separator */
     }
 
-    /* DataTables Search Input Styling */
+    /* DataTables Filter Wrapper - New horizontal toolbar */
     .dataTables_filter_wrapper {
+        position: relative;
+        background-color: #000000;
+        border: 1px solid #000000;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 0.75rem; /* Add more space below the filter area */
-        width: 100%;
-        gap: 1rem; /* Space between export button and search */
+        gap: 1rem;
+        min-height: 48px; /* Ensure consistent height */
     }
-    
+
+    /* DataTables Search Input Styling */
     .dataTables_filter {
-        display: flex !important;
+        margin: 0; /* Remove margins since we're in a wrapper */
+        padding: 0; /* Remove padding since wrapper handles it */
+        display: flex !important; /* Override DataTables default */
         justify-content: flex-end; /* Align search to the right */
-        align-items: center;
-        margin: 0; /* Remove default margin */
+        align-items: center; /* Align vertically */
         flex: 1; /* Take remaining space */
-    }
-    
-    /* Export Button Wrapper - Normal flow, aligned to left */
-    .export-button-wrapper {
-        flex-shrink: 0; /* Don't shrink the button */
-        align-self: flex-start; /* Align to start of cross axis */
     }
     
     .dataTables_filter label {
@@ -229,8 +233,17 @@
     
     /* Export DB Button Styling */
     .export-db-container {
-        display: inline-block; /* Changed from flex */
-        /* Removed order and flex-shrink as no longer needed */
+        display: flex;
+        align-items: center; /* Center vertically */
+        flex-shrink: 0; /* Don't shrink */
+    }
+    
+    /* Style the export button */
+    .btn-export-db {
+        white-space: nowrap; /* Prevent text wrapping */
+        font-size: 0.8rem; /* Match table font size */
+        padding: 0.35rem 0.75rem; /* Compact padding */
+        min-height: auto; /* Override default button height */
     }
     
     /* Disable hover animations for export DB button */

@@ -400,20 +400,19 @@ function addExportButtonToFilter() {
   setTimeout(() => {
     const filterDiv = document.querySelector('.dataTables_filter');
     if (filterDiv && !document.getElementById('export-db-btn')) {
-      // Create a wrapper for the entire filter area
-      const filterWrapper = document.createElement('div');
-      filterWrapper.className = 'dataTables_filter_wrapper';
+      // Create wrapper container
+      const wrapperDiv = document.createElement('div');
+      wrapperDiv.className = 'dataTables_filter_wrapper';
+      
+      // Create export button container and button
+      const exportContainer = createExportDbButton();
       
       // Insert wrapper before the filter div
-      filterDiv.parentNode.insertBefore(filterWrapper, filterDiv);
+      filterDiv.parentNode.insertBefore(wrapperDiv, filterDiv);
       
-      // Create export button container
-      const exportContainer = createExportDbButton();
-      exportContainer.className = 'export-button-wrapper';
-      
-      // Move filter div into wrapper and add export container
-      filterWrapper.appendChild(exportContainer);
-      filterWrapper.appendChild(filterDiv);
+      // Move filter div into wrapper
+      wrapperDiv.appendChild(exportContainer);
+      wrapperDiv.appendChild(filterDiv);
       
       // Update search input placeholder and remove label text
       const searchLabel = filterDiv.querySelector('label');
@@ -575,10 +574,15 @@ function addTableRowClickHandlers() {
   
   // Add click handler for table rows
   $('#results-table tbody').on('click', 'tr', function() {
-    const rowIndex = $(this).index();
-    if (rowIndex < currentResults.length) {
-      const domainData = currentResults[rowIndex];
-      showDomainDetails(domainData);
+    // Use DataTables API to get the correct row data
+    const rowData = dataTable.row(this).data();
+    if (rowData && rowData.length > 0) {
+      // Find the corresponding domain data in currentResults by matching the domain name
+      const domainName = rowData[0]; // Domain is in the first column
+      const domainData = currentResults.find(item => item.domain === domainName);
+      if (domainData) {
+        showDomainDetails(domainData);
+      }
     }
   });
 }
