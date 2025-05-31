@@ -30,6 +30,21 @@ function toggleRedirectHistory(redirectId) {
   }
 }
 
+// Function to toggle cache options visibility
+function toggleCacheOptions() {
+  const content = document.getElementById('cache-options-content');
+  const arrow = document.querySelector('.cache-options-arrow');
+  const isHidden = content.style.display === 'none';
+  
+  if (isHidden) {
+    content.style.display = 'block';
+    arrow.style.transform = 'rotate(180deg)';
+  } else {
+    content.style.display = 'none';
+    arrow.style.transform = 'rotate(0deg)';
+  }
+}
+
 checkBtn.addEventListener('click', async () => {
   const raw = document.getElementById('domains-input').value;
   const domains = raw.split(/\s+/).filter(Boolean);
@@ -72,8 +87,9 @@ checkBtn.addEventListener('click', async () => {
     columns: [
       { title: "Domain", data: 0 },
       { title: "Status", data: 1 },
-      { title: "Detail & Redirects", data: 2 },
-      { title: "Source", data: 3 }
+      { title: "Code", data: 2 },
+      { title: "Redirect", data: 3 },
+      { title: "Source", data: 4 }
     ]
   });
 
@@ -150,9 +166,9 @@ checkBtn.addEventListener('click', async () => {
         // Store result for download
         currentResults.push(item);
 
-        // table row - Enhanced display with expandable redirect history
-        let tableDetail = item.detail;
-        let redirectDisplay = '';
+        // Prepare separate code and redirect columns
+        let codeColumn = item.detail; // Status code or error message
+        let redirectColumn = ''; // Redirect information
         
         if (item.redirect_count && item.redirect_count > 0 && item.redirect_history) {
           // Create a unique ID for this row's redirect details
@@ -162,7 +178,7 @@ checkBtn.addEventListener('click', async () => {
           const redirectBadge = `<span class="text-yellow-200 text-xs bg-yellow-800 px-2 py-1 rounded-full cursor-pointer" onclick="toggleRedirectHistory('${redirectId}')">Show Redirects ▼</span>`;
           
           // Create detailed redirect history (initially hidden) - Updated for dark theme
-          redirectDisplay = `
+          const redirectDetails = `
             <div id="${redirectId}" class="redirect-history" style="display: none;">
               <div style="font-weight: 600; margin-bottom: 8px; color: #fbbf24;">Redirect Chain:</div>
               ${item.redirect_history.map((step, index) => {
@@ -178,14 +194,15 @@ checkBtn.addEventListener('click', async () => {
               }).join('')}
             </div>`;
           
-          tableDetail = `${item.detail} ${redirectBadge}${redirectDisplay}`;
+          redirectColumn = `${redirectBadge}${redirectDetails}`;
         }
         
         const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
         dataTable.row.add([
           item.domain,
           `<span class="badge ${item.ok ? 'badge-success' : 'badge-error'}">${statusText}</span>`,
-          tableDetail, // Show the detail with expandable redirect history
+          codeColumn, // Status code or error message
+          redirectColumn, // Redirect information
           item.from_cache ? '<span class="badge badge-outline text-blue-400">Cache</span>' : '<span class="badge badge-outline text-green-400">Live</span>'
         ]);
 
@@ -278,13 +295,16 @@ function downloadFile(filename, content, mimeType) {
 // Download CSV handler
 downloadCsvBtn.addEventListener('click', () => {
     if (!currentResults.length) return;
-    let csvContent = "Domain,Status,Detail,Redirects,Redirect_Chain,Source\n"; // Enhanced header row
+    let csvContent = "Domain,Status,Code,Redirect,Redirect_Chain,Source\n"; // Updated header row
     for (const item of currentResults) { // Changed from forEach to for...of
         const statusText = item.ok ? 'Online' : (item.detail.includes('Error') ? 'Error' : 'Offline');
         const source = item.from_cache ? 'Cache' : 'Live';
         
         // Escape commas and quotes in detail
-        const detail = `"${item.detail.replace(/"/g, '""')}"`;
+        const code = `"${item.detail.replace(/"/g, '""')}"`;
+        
+        // Create redirect info
+        const redirectInfo = item.redirect_count && item.redirect_count > 0 ? `"${item.redirect_count} redirect(s)"` : '""';
         
         // Create redirect chain string
         let redirectChain = '';
@@ -295,7 +315,7 @@ downloadCsvBtn.addEventListener('click', () => {
         }
         redirectChain = `"${redirectChain.replace(/"/g, '""')}"`;
         
-        csvContent += `${item.domain},${statusText},${detail},${item.redirect_count || 0},${redirectChain},${source}\n`;
+        csvContent += `${item.domain},${statusText},${code},${redirectInfo},${redirectChain},${source}\n`;
     }
     downloadFile('domain_results.csv', csvContent, 'text/csv;charset=utf-8;');
 });

@@ -39,14 +39,16 @@ class DomainCache:
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Create the cache table
+        # Create the cache table with separate code and redirect columns
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS domain_cache (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 domain TEXT NOT NULL,
                 is_ok BOOLEAN NOT NULL,
                 detail TEXT NOT NULL,
-                redirect_history TEXT,  -- JSON string of redirect history
+                status_code TEXT,        -- Status code or error message
+                redirect_info TEXT,      -- Redirect summary text
+                redirect_history TEXT,   -- JSON string of redirect history
                 redirect_count INTEGER DEFAULT 0,
                 final_status_code INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -113,7 +115,7 @@ class DomainCache:
         cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
         
         cursor.execute("""
-            SELECT domain, is_ok, detail, redirect_history, redirect_count, 
+            SELECT domain, is_ok, detail, status_code, redirect_info, redirect_history, redirect_count, 
                    final_status_code, created_at, updated_at
             FROM domain_cache 
             WHERE domain = ? AND created_at > ?
@@ -135,6 +137,8 @@ class DomainCache:
             'domain': row['domain'],
             'ok': bool(row['is_ok']),
             'detail': row['detail'],
+            'status_code': row['status_code'],
+            'redirect_info': row['redirect_info'],
             'redirect_history': redirect_history,
             'redirect_count': row['redirect_count'] or 0,
             'final_status_code': row['final_status_code'],
@@ -159,7 +163,7 @@ class DomainCache:
         if not self.should_cache_result(is_ok, detail):
             logging.debug(f"Skipping cache for {domain}: {detail}")
             return False
-        
+
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -169,11 +173,19 @@ class DomainCache:
             redirect_count = 0
             final_status_code = None
             
+            # Separate status code and redirect info
+            status_code = detail  # Default to using detail as status code
+            redirect_info = ""    # Default to empty redirect info
+            
             if redirect_history:
                 redirect_history_json = json.dumps(redirect_history)
                 redirect_count = len(redirect_history) - 1  # Subtract 1 for the final response
                 if redirect_history:
                     final_status_code = redirect_history[-1].get('status_code')
+                
+                # Create redirect summary text
+                if redirect_count > 0:
+                    redirect_info = f"{redirect_count} redirect(s)"
             
             # Extract status code from detail if available
             if final_status_code is None:
@@ -190,9 +202,9 @@ class DomainCache:
             
             cursor.execute("""
                 INSERT OR REPLACE INTO domain_cache 
-                (domain, is_ok, detail, redirect_history, redirect_count, final_status_code, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (domain, is_ok, detail, redirect_history_json, redirect_count, final_status_code))
+                (domain, is_ok, detail, status_code, redirect_info, redirect_history, redirect_count, final_status_code, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (domain, is_ok, detail, status_code, redirect_info, redirect_history_json, redirect_count, final_status_code))
             
             conn.commit()
             logging.info(f"Cached result for {domain}: {detail}")
