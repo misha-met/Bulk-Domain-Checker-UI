@@ -400,8 +400,20 @@ function addExportButtonToFilter() {
   setTimeout(() => {
     const filterDiv = document.querySelector('.dataTables_filter');
     if (filterDiv && !document.getElementById('export-db-btn')) {
+      // Create a wrapper for the entire filter area
+      const filterWrapper = document.createElement('div');
+      filterWrapper.className = 'dataTables_filter_wrapper';
+      
+      // Insert wrapper before the filter div
+      filterDiv.parentNode.insertBefore(filterWrapper, filterDiv);
+      
+      // Create export button container
       const exportContainer = createExportDbButton();
-      filterDiv.appendChild(exportContainer);
+      exportContainer.className = 'export-button-wrapper';
+      
+      // Move filter div into wrapper and add export container
+      filterWrapper.appendChild(exportContainer);
+      filterWrapper.appendChild(filterDiv);
       
       // Update search input placeholder and remove label text
       const searchLabel = filterDiv.querySelector('label');

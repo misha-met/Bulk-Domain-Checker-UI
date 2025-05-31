@@ -172,12 +172,27 @@
     }
 
     /* DataTables Search Input Styling */
-    .dataTables_filter {
-        margin-bottom: 0.5rem; /* Add space below the search bar */
-        display: flex !important; /* Override DataTables default */
-        justify-content: space-between; /* Spread items across */
-        align-items: center; /* Align vertically */
+    .dataTables_filter_wrapper {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem; /* Add more space below the filter area */
+        width: 100%;
         gap: 1rem; /* Space between export button and search */
+    }
+    
+    .dataTables_filter {
+        display: flex !important;
+        justify-content: flex-end; /* Align search to the right */
+        align-items: center;
+        margin: 0; /* Remove default margin */
+        flex: 1; /* Take remaining space */
+    }
+    
+    /* Export Button Wrapper - Normal flow, aligned to left */
+    .export-button-wrapper {
+        flex-shrink: 0; /* Don't shrink the button */
+        align-self: flex-start; /* Align to start of cross axis */
     }
     
     .dataTables_filter label {
@@ -214,9 +229,8 @@
     
     /* Export DB Button Styling */
     .export-db-container {
-        display: flex;
-        order: -1; /* Move to the left */
-        flex-shrink: 0; /* Don't shrink */
+        display: inline-block; /* Changed from flex */
+        /* Removed order and flex-shrink as no longer needed */
     }
     
     /* Disable hover animations for export DB button */
