@@ -455,6 +455,7 @@ function showDomainDetails(domainData) {
   const statusClass = domainData.ok ? 'badge-success' : 'badge-error';
   status.innerHTML = `<span class="badge ${statusClass}">${statusText}</span>`;
   
+  // Show full details in modal (no truncation)
   details.textContent = domainData.detail;
   
   const sourceText = domainData.from_cache ? 'Cache' : 'Live';

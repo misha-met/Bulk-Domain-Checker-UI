@@ -163,7 +163,7 @@ async def check(domain: str, client: AsyncClient) -> tuple[bool, str, list]:
         return False, str(last_err) if last_err else 'HTTP connection failed', []
     except Exception as e:
         # If DNS resolution also fails, the domain name doesn't exist or DNS is broken
-        return False, f'DNS resolution failed: {str(e)[:50]}...' if len(str(e)) > 50 else f'DNS resolution failed: {str(e)}', []
+        return False, f'DNS resolution failed: {str(e)}', []
 
 async def run(domains, timeout, workers):
     """Runs checks for a list of domains concurrently (CLI version).
