@@ -39,16 +39,15 @@ class DomainCache:
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Create the cache table with separate code and redirect columns
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS domain_cache (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 domain TEXT NOT NULL,
                 is_ok BOOLEAN NOT NULL,
                 detail TEXT NOT NULL,
-                status_code TEXT,        -- Status code or error message
-                redirect_info TEXT,      -- Redirect summary text
-                redirect_history TEXT,   -- JSON string of redirect history
+                status_code TEXT,
+                redirect_info TEXT,
+                redirect_history TEXT,
                 redirect_count INTEGER DEFAULT 0,
                 final_status_code INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -57,12 +56,10 @@ class DomainCache:
             )
         """)
         
-        # Create index for faster domain lookups
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_domain ON domain_cache(domain)
         """)
         
-        # Create index for timestamp queries
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_created_at ON domain_cache(created_at)
         """)
@@ -73,8 +70,6 @@ class DomainCache:
     def should_cache_result(self, is_ok: bool, detail: str) -> bool:
         """Determine if a result should be cached based on business rules.
         
-        Cache successful status codes (200, 3xx, 4xx) but not errors/failures.
-        
         Args:
             is_ok: Whether the domain check was successful
             detail: Detail string from the check
@@ -82,16 +77,12 @@ class DomainCache:
         Returns:
             True if the result should be cached, False otherwise
         """
-        # Cache successful responses (is_ok = True)
         if is_ok:
             return True
         
-        # Cache HTTP error responses (4xx, 5xx) but not connection/DNS errors
-        # Check if detail is a numeric status code (new format) or starts with HTTP (old format)
         if (detail.isdigit() and int(detail) >= 400) or (detail.startswith('HTTP ') and any(code in detail for code in ['400', '401', '403', '404', '500', '502', '503'])):
             return True
         
-        # Don't cache DNS failures, connection errors, timeouts, etc.
         if any(error_type in detail.lower() for error_type in [
             'dns resolution failed', 'connection', 'timeout', 'ssl', 'certificate'
         ]):
@@ -112,7 +103,6 @@ class DomainCache:
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Calculate cutoff time
         cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
         
         cursor.execute("""
@@ -126,7 +116,6 @@ class DomainCache:
         if not row:
             return None
         
-        # Parse redirect history from JSON
         redirect_history = []
         if row['redirect_history']:
             try:
@@ -160,7 +149,6 @@ class DomainCache:
         Returns:
             True if cached successfully, False otherwise
         """
-        # Check if we should cache this result
         if not self.should_cache_result(is_ok, detail):
             logging.debug(f"Skipping cache for {domain}: {detail}")
             return False
@@ -169,29 +157,24 @@ class DomainCache:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            # Prepare redirect data
             redirect_history_json = None
             redirect_count = 0
             final_status_code = None
             
-            # Separate status code and redirect info
-            status_code = detail  # Default to using detail as status code
-            redirect_info = ""    # Default to empty redirect info
+            status_code = detail
+            redirect_info = ""
             
             if redirect_history:
                 redirect_history_json = json.dumps(redirect_history)
-                redirect_count = len(redirect_history) - 1  # Subtract 1 for the final response
+                redirect_count = len(redirect_history) - 1
                 if redirect_history:
                     final_status_code = redirect_history[-1].get('status_code')
                 
-                # Create redirect summary text
                 if redirect_count > 0:
                     redirect_info = f"{redirect_count} redirect(s)"
             
-            # Extract status code from detail if available
             if final_status_code is None:
                 try:
-                    # Try to extract status code from detail string
                     if detail.isdigit():
                         final_status_code = int(detail)
                     elif detail.startswith('HTTP '):
@@ -224,20 +207,16 @@ class DomainCache:
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Total entries
         cursor.execute("SELECT COUNT(*) as total FROM domain_cache")
         total = cursor.fetchone()['total']
         
-        # Entries by success/failure
         cursor.execute("SELECT is_ok, COUNT(*) as count FROM domain_cache GROUP BY is_ok")
         status_counts = {row['is_ok']: row['count'] for row in cursor.fetchall()}
         
-        # Recent entries (last 24 hours)
         cutoff_time = datetime.now() - timedelta(hours=24)
         cursor.execute("SELECT COUNT(*) as recent FROM domain_cache WHERE created_at > ?", (cutoff_time,))
         recent = cursor.fetchone()['recent']
         
-        # Database file size
         db_size = Path(self.db_path).stat().st_size if Path(self.db_path).exists() else 0
         
         return {

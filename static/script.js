@@ -1,25 +1,20 @@
-// Domain check flow (default light mode, dark mode removed)
 const checkBtn = document.getElementById('check-btn');
-const buttonTextSpan = checkBtn.querySelector('.button-text'); // Get the span inside the button
-// const loader = document.getElementById('loader'); // removed loader element
+const buttonTextSpan = checkBtn.querySelector('.button-text');
 const resultsContainer = document.getElementById('results-container');
-const downloadButtonsContainer = document.getElementById('download-buttons-container'); // Get download buttons container
+const downloadButtonsContainer = document.getElementById('download-buttons-container');
 const downloadCsvBtn = document.getElementById('download-csv-btn');
 const downloadTxtBtn = document.getElementById('download-txt-btn');
-const resultsPanel = document.getElementById('results-panel'); // Get the results panel
+const resultsPanel = document.getElementById('results-panel');
 
-// DataTable instance for live-updating table
 let dataTable;
-let currentResults = []; // Store results for download
-let elapsedTimeInterval = null; // Variable to hold the interval timer ID
+let currentResults = [];
+let elapsedTimeInterval = null;
 
-// Function to toggle redirect history visibility
 function toggleRedirectHistory(redirectId) {
   const element = document.getElementById(redirectId);
   const isHidden = element.style.display === 'none';
   element.style.display = isHidden ? 'block' : 'none';
   
-  // Update the arrow indicator and text
   const badge = element.previousElementSibling;
   if (badge && badge.textContent) {
     if (isHidden) {
@@ -30,7 +25,6 @@ function toggleRedirectHistory(redirectId) {
   }
 }
 
-// Function to toggle cache options visibility
 function toggleCacheOptions() {
   const content = document.getElementById('cache-options-content');
   const arrow = document.querySelector('.cache-options-arrow');
@@ -50,40 +44,37 @@ checkBtn.addEventListener('click', async () => {
   const domains = raw.split(/\s+/).filter(Boolean);
   const totalDomains = domains.length;
   
-  // Get cache options
   const useCache = document.getElementById('use-cache').checked;
   const addToCache = document.getElementById('add-to-cache').checked;
   
   if (!totalDomains) return;
 
-  // UI state
   checkBtn.disabled = true;
-  buttonTextSpan.innerHTML = '<span class="btn-shine">Checking Domains</span>'; // Apply shine animation
-  resultsPanel.classList.add('border', 'border-gray-700'); // Add border when checking starts
-  // Reset DataTable if exists
+  buttonTextSpan.innerHTML = '<span class="btn-shine">Checking Domains</span>';
+  resultsPanel.classList.add('border', 'border-gray-700');
+  
   if (dataTable) {
     dataTable.clear().destroy();
-    dataTable = null; // Ensure it's fully reset
+    dataTable = null;
   }
   
-  // Clear the table HTML content to ensure clean state
   $('#results-table tbody').empty();
   
-  resultsContainer.classList.remove('hidden'); // Show the table container
-  downloadButtonsContainer.classList.add('hidden'); // Hide download buttons initially
-  currentResults = []; // Clear previous results
-  // Initialize DataTable
+  resultsContainer.classList.remove('hidden');
+  downloadButtonsContainer.classList.add('hidden');
+  currentResults = [];
+  
   dataTable = $('#results-table').DataTable({
     scrollY: '300px',
     scrollCollapse: true,
     paging: false,
     info: false,
-    searching: true, // Enable search box
+    searching: true,
     ordering: true,
     autoWidth: false,
-    deferRender: true,       // improve performance on large datasets
-    scroller: true,          // enable virtualized scrolling
-    data: [],                // Start with empty data array
+    deferRender: true,
+    scroller: true,
+    data: [],
     columns: [
       { title: "Domain", data: 0 },
       { title: "Status", data: 1 },
@@ -93,10 +84,8 @@ checkBtn.addEventListener('click', async () => {
     ]
   });
 
-  // Add export database button to the filter row
   addExportButtonToFilter();
   
-  // Add click handlers to table rows
   addTableRowClickHandlers();
 
   // Terminal display removed - backend logging still functions
