@@ -4,508 +4,868 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Domain Checker</title>
-  <link rel="icon" href="/static/icon.svg" type="image/svg+xml"> <!-- Add this line -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" rel="stylesheet" />
-  <!-- Dark-mode overrides -->
   <style>
-    /* Modern Font & Base */
+    :root {
+      color-scheme: dark;
+      --bg: #000000;
+      --surface: #0a0a0a;
+      --surface-2: #111111;
+      --border: #1a1a1a;
+      --border-strong: #262626;
+      --text: #ededed;
+      --text-dim: #8a8a8a;
+      --text-muted: #555555;
+      --accent: #4ade80;        /* terminal green */
+      --accent-dim: #1f3b2a;
+      --error: #ef4444;
+      --error-dim: #2a1414;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { background: var(--bg); }
+
     body {
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      background-color: #000000; /* Pure black background */
-      color: #EAEAEA; /* Light gray text */
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text);
+      letter-spacing: -0.005em;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Main Container */
-    .main-container { /* Replaces direct body styling for padding */
-        padding: 2rem; /* Add padding like container mx-auto py-8 */
-    }
+    .mono { font-family: 'JetBrains Mono', 'Menlo', 'Monaco', 'Consolas', monospace; }
 
-    /* Inputs & Buttons */
-    .textarea,
+    /* ==================== Buttons ==================== */
     .btn {
-      background-color: #1f1f1f;
-      color: #EAEAEA;
-      border: 1px solid #333333;
-      border-radius: 0.375rem;
-      transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, transform 0.1s ease-in-out, box-shadow 0.2s ease-in-out; /* Added transitions */
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 0.55rem 1rem;
+      font-size: 0.825rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color .15s, border-color .15s, color .15s, transform .08s;
+      letter-spacing: 0.01em;
     }
-    .textarea { /* Add this rule */
-        resize: none; 
-    }
-    .btn:hover { 
-      background-color: #2a2a2a; 
-      transform: translateY(-1px); /* Subtle lift on hover */
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow on hover */
-    }
-    .btn:active {
-      transform: translateY(0px); /* Press down effect */
-      box-shadow: none;
-    }
+    .btn:hover { background: #161616; border-color: #333; }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
     .btn-primary {
-      background-color: #ffffff;
-      color: #000000;
-      border-color: #ffffff;
+      background: var(--text);
+      color: #000;
+      border-color: var(--text);
+      font-weight: 600;
     }
-    .btn-primary:hover { 
-      background-color: #f0f0f0; 
-      border-color: #f0f0f0; 
-      transform: translateY(-1px); /* Subtle lift on hover */
-      box-shadow: 0 2px 4px rgba(255, 255, 255, 0.1); /* Add shadow on hover */
+    .btn-primary:hover { background: #fff; border-color: #fff; }
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--border-strong);
+      color: var(--text-dim);
     }
-    .btn-primary:active {
-      transform: translateY(0px); /* Press down effect */
-      box-shadow: none;
+    .btn-ghost:hover { color: var(--text); border-color: #333; background: var(--surface); }
+    .btn-danger {
+      background: var(--error-dim);
+      color: var(--error);
+      border-color: #4a1f1f;
     }
-    /* Add a class for pulsing animation if needed via JS */
-    .btn-checking {
-      animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    .btn-danger:hover { background: #3a1818; border-color: #6a2a2a; }
+    .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.75rem; }
+
+    /* ==================== Surfaces ==================== */
+    .surface {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .surface-2 {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
     }
 
-    /* DataTables Dark Style */
-    .dataTables_wrapper {
-      width: 100%; /* Ensure wrapper fits container */
+    /* ==================== Header ==================== */
+    .app-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--text);
     }
-    table.dataTable {
-      color: #EAEAEA;
-      border-collapse: separate; /* Needed for spacing */
-      border-spacing: 0;
-    }
-    .dataTables_scrollHead,
-    .dataTables_scrollHeadInner table {
-      background-color: #1f1f1f; /* Changed to match input background */
-      border-bottom: 1px solid #2a2a2a;
-    }
-    .dataTables_scrollBody {
-      background-color: #080808; /* Slightly different dark for body */
-    }
-    table.dataTable thead th {
-      background-color: #1f1f1f !important; /* Explicitly set header cell background */
-      color: #a0a0a0; /* Muted header text */
-      font-weight: 500;
-      border-bottom: none;
-      padding: 0.4rem 0.6rem; /* Further reduced padding */
-      font-size: 0.8rem; /* Slightly smaller font */
-    }
-    table.dataTable tbody td {
-      padding: 0.4rem 0.6rem; /* Further reduced padding */
-      font-size: 0.8rem; /* Slightly smaller font */
-      border-bottom: 1px solid #1f1f1f; /* Subtle row separator */
-    }
-    /* Zebra striping */
-    table.table-zebra tbody tr:nth-child(odd) td { background-color: rgba(255, 255, 255, 0.02); }
-    table.table-zebra tbody tr:nth-child(even) td { background-color: transparent; }
-    /* Status Badges */
-    .badge {
-      border-radius: 9999px; /* Pill shape */
-      font-weight: 500;
-      padding: 0.25em 0.6em;
-      transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
-    }
-    .badge-success {
-      background-color: rgba(74, 222, 128, 0.2); /* Green background tint */
-      color: #4ade80; /* Vibrant green text */
-    }
-    .badge-error {
-      background-color: rgba(248, 113, 113, 0.2); /* Red background tint */
-      color: #f87171; /* Vibrant red text */
-    }
-
-    /* Terminal Panel */
-    #log-panel {
-      border-color: #2a2a2a;
-      background-color: #111111;
-      border-radius: 0.5rem;
-      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-      transition: border-color 0.3s ease-in-out;
-    }
-    #log-panel.active { /* Example class to add when logs appear */
-      border-color: #4ade80; /* Highlight border when active */
-    }
-    #log-panel .terminal-header {
-      background-color: #111111;
-      color: #a0a0a0;
-      border-bottom: 1px solid #2a2a2a;
-      padding: 0.5rem 1rem;
-      font-size: 0.875rem;
-    }
-    #logs {
-      background-color: #000000;
-      color: #4ade80; /* Use vibrant green for logs */
-      font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
-      padding: 0.75rem 1rem;
-      height: 8rem; /* Reduced height */
-      overflow-y: auto;
+    .app-subtitle {
       font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 0.15rem;
     }
 
-    /* Remove DataTables internal borders */
-    table.dataTable, table.dataTable th, table.dataTable td {
-      border: none !important; /* Keep borders removed */
+    /* ==================== Unified progress bar ====================
+       One stacked bar: online + each failure category + unchecked-remainder.
+       Replaces both the old progress strip and the standalone status bar. */
+    .progress-bar-wrap {
+      position: relative;
+      height: 4px;
+      width: 100%;
+      background: var(--border);
+      border-radius: 9999px;
+      overflow: hidden;
+      display: flex;
     }
-    .dataTables_scrollHead, .dataTables_scrollBody {
-      border: none !important; /* Keep borders removed */
+    .progress-bar-wrap.shimmer::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+      animation: shimmer 1.6s infinite;
+      pointer-events: none;
+      mix-blend-mode: screen;
     }
-    table.dataTable tbody td {
-       border-bottom: 1px solid #1f1f1f !important; /* Re-apply subtle row separator */
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
     }
-    .dataTables_scrollHead {
-       border-bottom: 1px solid #2a2a2a !important; /* Re-apply header separator */
+    .progress-seg {
+      height: 100%;
+      transition: width .3s ease-out, opacity .15s;
+      cursor: pointer;
     }
-
-    /* DataTables Search Input Styling */
-    .dataTables_filter {
-        margin-bottom: 0.5rem; /* Add space below the search bar */
-    }
-    .dataTables_filter label {
-      color: #a0a0a0; /* Muted foreground */
-      font-size: 0.8rem; /* Match table font size */
-      font-weight: 500;
-      display: inline-flex; /* Align items vertically */
-      align-items: center; /* Align items vertically */
-    }
-    .dataTables_filter input[type="search"] {
-      background-color: #1f1f1f; /* Dark input background */
-      color: #EAEAEA; /* Light text */
-      border: 1px solid #333333; /* Subtle border */
-      border-radius: 0.375rem; /* Rounded corners */
-      padding: 0.15rem 0.4rem; /* Further reduced vertical padding */
-      margin-left: 0.5rem; /* Space between label and input */
-      font-size: 0.8rem; /* Match table font size */
-      line-height: 1.2; /* Reduce line height */
-      transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    }
-    .dataTables_filter input[type="search"]:focus {
-      outline: none;
-      border-color: #4ade80; /* Highlight border on focus (optional) */
-      box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.3); /* Subtle focus ring (optional) */
+    .progress-seg.dim { opacity: .35; }
+    .progress-seg:hover { opacity: 1 !important; }
+    .progress-seg.online {
+      box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
     }
 
-    /* New Dashboard Styles */
-    .text-foreground { color: #EAEAEA; } /* Match body text */
-    .text-muted-foreground { color: #a0a0a0; }
-    .badge-outline { border-color: #333333; color: #a0a0a0; }
+    /* ==================== Stat cards ==================== */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+    @media (min-width: 640px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 1024px) { .stat-grid { grid-template-columns: repeat(6, 1fr); } }
+
     .stat-card {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 1rem; /* p-4, reduced from p-6 */
-      border: 1px solid #2a2a2a; /* border-border */
-      border-radius: 0.375rem; /* rounded-md */
-      background-color: #111111; /* bg-card */
-      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
-      transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out, border-color 0.2s ease-in-out; /* Added transform and border-color */
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 0.95rem;
+      transition: border-color .15s, background-color .15s;
+      overflow: hidden;
     }
-    .stat-card:hover {
-      box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.15), 0 3px 7px -3px rgba(0, 0, 0, 0.1); /* Enhanced shadow */
-      transform: translateY(-2px); /* Slightly more lift */
-      border-color: #444444; /* Subtle border highlight */
-    }
+    .stat-card:hover { border-color: var(--border-strong); }
     .stat-card-icon {
-      width: 1.25rem; /* w-5 */
-      height: 1.25rem; /* h-5 */
-      margin-bottom: 1.5rem; /* mb-6 */
+      width: 16px; height: 16px;
+      color: var(--text-muted);
+      margin-bottom: 1.1rem;
     }
-    .stat-card-icon.text-primary { color: #60a5fa; } /* Blue */
-    .stat-card-icon.text-destructive { color: #f87171; } /* Red */
-    .stat-card-icon.text-secondary { color: #93c5fd; } /* Lighter Blue */
-    .stat-card-icon.text-info { color: #7dd3fc; } /* Cyan */
-
     .stat-card-value {
-      font-size: 1.5rem; /* text-2xl, reduced from text-3xl */
-      line-height: 2rem;
-      letter-spacing: -0.025em; /* tracking-tighter */
-      font-weight: 500; /* font-medium */
-      color: #ffffff; /* Brighter value */
-      display: flex;
-      flex-direction: row;
-      gap: 1rem; /* gap-4 */
-      align-items: flex-end;
+      font-size: 1.35rem;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      display: flex; align-items: baseline; gap: 0.45rem;
     }
-    .stat-card-additional-info {
-      font-size: 0.875rem; /* text-sm */
-      line-height: 1.25rem;
-      color: #a0a0a0; /* text-muted-foreground */
-      letter-spacing: normal; /* tracking-normal */
-    }
-    .stat-card-text {
-      margin-top: 0.25rem; /* mt-1 */
-      /* space-y-1 handled by individual margins/paddings */
+    .stat-card-value-suffix {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-weight: 400;
+      letter-spacing: 0;
     }
     .stat-card-title {
-      font-size: 0.75rem; /* text-xs, reduced from text-sm */
-      line-height: 1rem;
-      font-weight: 500; /* font-medium */
-      color: #EAEAEA; /* text-foreground */
-      margin-bottom: 0.25rem;
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--text);
+      margin-top: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
     .stat-card-description {
-      font-size: 0.75rem; /* text-xs */
-      line-height: 1rem;
-      color: #a0a0a0; /* text-muted-foreground */
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 0.15rem;
+    }
+    /* Sparkline as a subtle background of the speed card */
+    .stat-card-sparkline {
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 28px;
+      pointer-events: none;
+      opacity: 0.4;
+      mask-image: linear-gradient(to top, #000 60%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to top, #000 60%, transparent 100%);
     }
 
-    /* --- Scrollbar Styling --- */
-    /* Webkit (Chrome, Safari, Edge) */
-    ::-webkit-scrollbar {
-      width: 8px; /* Width of the scrollbar */
-      height: 8px; /* Height for horizontal scrollbars */
+    /* ==================== Input panel ==================== */
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+    .panel-header {
+      padding: 0.6rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      display: flex; justify-content: space-between; align-items: center;
     }
+    .panel-body { padding: 0.85rem; }
 
-    ::-webkit-scrollbar-track {
-      background: transparent; /* Make track transparent by default */
+    .field {
+      width: 100%;
+      background: #050505;
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 0.55rem 0.7rem;
+      font-size: 0.825rem;
+      font-family: 'JetBrains Mono', monospace;
+      transition: border-color .15s, box-shadow .15s;
+      resize: none;
+    }
+    .field::placeholder { color: var(--text-muted); }
+    .field:focus {
+      outline: none;
+      border-color: var(--text-dim);
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+    }
+    .field.dropzone-active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+
+    .input-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 0.4rem;
+      min-height: 14px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .input-meta .meta-warn { color: var(--text-dim); }
+    .input-meta .meta-ok { color: var(--accent); }
+
+    details.settings { margin-top: 0.6rem; }
+    details.settings summary {
+      cursor: pointer; user-select: none;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      list-style: none;
+      padding: 0.25rem 0;
+      letter-spacing: 0.04em;
+    }
+    details.settings summary::-webkit-details-marker { display: none; }
+    details.settings summary::before {
+      content: '+'; margin-right: 0.4rem; color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    details.settings[open] summary::before { content: '−'; }
+    .settings-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+      margin-top: 0.4rem;
+    }
+    .settings-grid label {
+      font-size: 0.65rem; color: var(--text-dim);
+      display: block; margin-bottom: 0.2rem;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .settings-grid input.field,
+    .settings-grid select.field { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
+    .settings-grid select.field {
+      width: 100%;
+      background: #050505;
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 0.45rem center;
+      background-size: 12px 12px;
+      padding-right: 1.6rem;
+    }
+    .settings-grid select.field:focus {
+      outline: none; border-color: var(--text-dim);
+    }
+    .settings-row-full { grid-column: 1 / -1; }
+    .settings-help {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-top: 0.3rem;
+    }
+    .settings-help strong { color: var(--text-dim); font-weight: 500; }
+
+    /* ==================== Failure reasons ==================== */
+    .reasons-list { display: flex; flex-direction: column; gap: 1px; }
+    .reason-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.4rem 0.6rem;
       border-radius: 4px;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: background-color .12s, color .12s;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .reason-row:hover { background: #141414; color: var(--text); }
+    .reason-row.active { background: var(--accent-dim); color: var(--accent); }
+    /* Each failure category gets a slightly different visual mark like a 2px-wide
+       vertical line whose height varies by category.  Cheap differentiation
+       without breaking the monochrome aesthetic. */
+    .reason-row .mark {
+      display: inline-block;
+      width: 3px;
+      height: 12px;
+      margin-right: 0.6rem;
+      background: var(--text-dim);
+      border-radius: 1px;
+      vertical-align: middle;
+    }
+    .reason-row[data-cat="ssl"] .mark { background: var(--error); }
+    .reason-row .reason-count {
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .reason-row .reason-bar {
+      flex: 1; margin: 0 0.6rem;
+      height: 2px; background: var(--border); border-radius: 9999px;
+      overflow: hidden;
+    }
+    .reason-row .reason-bar-fill {
+      height: 100%; background: var(--text-muted);
+      transition: width .3s ease-out;
+    }
+    .reason-row[data-cat="ssl"] .reason-bar-fill { background: var(--error); }
+    .reason-row.active .reason-bar-fill { background: var(--accent); }
+
+    /* ==================== Terminal panel ==================== */
+    .terminal {
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color .25s;
+    }
+    .terminal.active { border-color: var(--accent-dim); }
+    .terminal-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 0.85rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .terminal-dots { display: flex; gap: 6px; }
+    .terminal-dots span {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #2a2a2a;
+    }
+    .terminal-title {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      flex: 1;
+      text-align: center;
+      margin-left: -2.5rem;
+    }
+    .terminal-status {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    #logs {
+      background: #000;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', 'Menlo', monospace;
+      padding: 0.7rem 0.9rem;
+      height: 12rem;
+      overflow-y: auto;
+      font-size: 0.72rem;
+      line-height: 1.55;
+    }
+    #logs pre {
+      color: var(--accent);
+      margin: 0;
+      line-height: 1;
+      font-family: inherit;
     }
 
-    /* Specific track colors */
-    .textarea::-webkit-scrollbar-track {
-        background: #1f1f1f; /* Match textarea background */
+    /* ==================== Results table ==================== */
+    .results-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.55rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      gap: 0.5rem;
     }
-    #logs::-webkit-scrollbar-track,
-    #results-container::-webkit-scrollbar-track,
-    .dataTables_scrollBody::-webkit-scrollbar-track {
-        background: #080808; /* Match results/log panel background */
+    input.results-search {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.3rem 0.6rem 0.3rem 2rem;
+      font-size: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      width: 220px;
+      transition: border-color .15s, box-shadow .15s, background-color .15s;
+      -webkit-appearance: none;
+      appearance: none;
+      line-height: 1.2;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>");
+      background-repeat: no-repeat;
+      background-size: 11px 11px;
+      background-position: 0.65rem 50%;
+    }
+    input.results-search:focus {
+      outline: none;
+      border-color: var(--border-strong);
+      background: #050505;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>");
+      background-repeat: no-repeat;
+      background-size: 11px 11px;
+      background-position: 0.65rem 50%;
+    }
+    input.results-search::placeholder { color: var(--text-muted); }
+    input.results-search::-webkit-search-cancel-button,
+    input.results-search::-webkit-search-decoration,
+    input.results-search::-webkit-search-results-button,
+    input.results-search::-webkit-search-results-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+      display: none;
+    }
+    /* Force-style every input we render. Browsers (especially Brave/Chromium
+       under shields) like to repaint search/number inputs in light scheme
+       even with color-scheme: dark; this overrides them at higher specificity. */
+    input[type="number"],
+    input[type="search"],
+    input[type="text"],
+    textarea {
+      background: #050505 !important;
+      color: var(--text) !important;
+      -webkit-appearance: none !important;
+      appearance: none !important;
+    }
+    input[type="number"].field,
+    input[type="text"].field,
+    textarea.field { background: #050505 !important; }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none; margin: 0;
+    }
+    input[type="number"] { -moz-appearance: textfield; }
+    .results-search-wrap {
+      position: relative;
+      display: inline-flex;
+    }
+    .results-count {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
     }
 
+    #results-container {
+      max-height: 540px;
+      overflow: auto;
+    }
+    table.results-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    table.results-table thead th {
+      position: sticky; top: 0; z-index: 1;
+      background: var(--surface);
+      color: var(--text-dim);
+      font-weight: 500;
+      font-size: 0.66rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.55rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    table.results-table thead th .sort-arrow {
+      opacity: 0;
+      margin-left: 0.3rem;
+      font-size: 0.7em;
+      color: var(--text-dim);
+    }
+    table.results-table thead th:hover .sort-arrow { opacity: .5; }
+    table.results-table thead th.active .sort-arrow { opacity: 1; color: var(--accent); }
+    table.results-table tbody td {
+      padding: 0.45rem 0.85rem;
+      font-size: 0.78rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    table.results-table tbody td:nth-child(1) { color: var(--text); }
+    table.results-table tbody td:nth-child(3) { color: var(--text-dim); }
+    table.results-table tbody td:nth-child(4) {
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      width: 90px;
+    }
+    table.results-table tbody tr:hover td { background: #0c0c0c; }
+
+    /* ==================== Badges ==================== */
+    .badge {
+      display: inline-block;
+      font-size: 0.66rem;
+      font-weight: 500;
+      padding: 0.15em 0.55em;
+      border-radius: 9999px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      font-family: 'JetBrains Mono', monospace;
+      border: 1px solid transparent;
+    }
+    .badge-online {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-color: rgba(74, 222, 128, 0.25);
+    }
+    .badge-offline {
+      background: #161616;
+      color: var(--text-dim);
+      border-color: var(--border-strong);
+    }
+    .badge-error {
+      background: var(--error-dim);
+      color: var(--error);
+      border-color: rgba(239, 68, 68, 0.25);
+    }
+
+    /* Filter pill (active failure-category filter) */
+    .filter-pill {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: var(--accent-dim);
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      color: var(--accent);
+      padding: 0.15rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-family: 'JetBrains Mono', monospace;
+      margin-left: 0.5rem;
+    }
+    .filter-pill button {
+      background: none; border: none; color: inherit;
+      cursor: pointer; padding: 0; line-height: 1;
+      font-size: 0.95rem;
+    }
+
+    /* ==================== Scrollbars ==================== */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
-      background-color: #444444; /* Scrollbar handle color */
+      background-color: #2a2a2a;
       border-radius: 4px;
-      border: 2px solid transparent; /* Creates padding around thumb */
+      border: 2px solid transparent;
       background-clip: content-box;
     }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background-color: #555555; /* Slightly lighter on hover */
+    ::-webkit-scrollbar-thumb:hover { background-color: #3a3a3a; }
+    body, .field, #logs, #results-container {
+      scrollbar-width: thin;
+      scrollbar-color: #2a2a2a transparent;
     }
 
-    /* Firefox */
-    /* For elements with specific backgrounds */
-    .textarea {
-        scrollbar-width: thin;
-        scrollbar-color: #444444 #1f1f1f; /* thumb track */
+    /* ==================== Toast ==================== */
+    #toast-container {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      z-index: 50;
+      pointer-events: none;
     }
-    #logs,
-    #results-container,
-    .dataTables_scrollBody {
-        scrollbar-width: thin;
-        scrollbar-color: #444444 #080808; /* thumb track */
+    .toast {
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      padding: 0.5rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-family: 'JetBrains Mono', monospace;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+      animation: toastIn .25s ease-out, toastOut .25s ease-in 1.6s forwards;
+      pointer-events: auto;
     }
-    /* General fallback for other scrollable areas if needed */
-    body {
-        scrollbar-width: thin;
-        scrollbar-color: #444444 #000000; /* thumb track for body */
-    }
-
-    /* --- Animation Keyframes --- */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
+    .toast-accent { border-color: rgba(74,222,128,0.4); color: var(--accent); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: .7; }
+    @keyframes toastOut {
+      to { opacity: 0; transform: translateY(-4px); }
     }
 
-    /* Apply Entrance Animation */
-    .fade-in {
-      animation: fadeIn 0.5s ease-out forwards;
-      opacity: 0; /* Start hidden */
+    /* Row click affordance */
+    table.results-table tbody tr { cursor: copy; }
+    table.results-table tbody tr.flash td { background: rgba(74,222,128,0.08) !important; transition: background-color .4s; }
+    @keyframes rowAppear {
+      from { background-color: rgba(74,222,128,0.1); }
+      to { background-color: transparent; }
     }
+    table.results-table tbody tr.appear td { animation: rowAppear .6s ease-out; }
 
-    /* Staggered animation delays for cards */
-    #new-dashboard-container .stat-card:nth-child(1) { animation-delay: 0.1s; }
-    #new-dashboard-container .stat-card:nth-child(2) { animation-delay: 0.2s; }
-    #new-dashboard-container .stat-card:nth-child(3) { animation-delay: 0.3s; }
-    #new-dashboard-container .stat-card:nth-child(4) { animation-delay: 0.4s; }
-    #new-dashboard-container .stat-card:nth-child(5) { animation-delay: 0.5s; }
-
-    /* Main content panels animation */
-    .main-content-panel {
-        animation: fadeIn 0.6s ease-out forwards;
-        animation-delay: 0.6s; /* Start after cards */
-        opacity: 0;
+    /* Clear-input button (× inside textarea wrapper) */
+    .input-wrap { position: relative; }
+    .clear-input-btn {
+      position: absolute;
+      top: 0.45rem;
+      right: 0.55rem;
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      color: var(--text-muted);
+      width: 22px; height: 22px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      line-height: 1;
+      cursor: pointer;
+      display: none;
+      transition: color .12s, border-color .12s;
     }
+    .clear-input-btn:hover { color: var(--text); border-color: #333; }
+    .input-wrap.has-text .clear-input-btn { display: inline-flex; align-items: center; justify-content: center; }
 
-    /* Shine Animation for Button Text */
+    /* ==================== Animations ==================== */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn .4s ease-out forwards; opacity: 0; }
+    .stat-card:nth-child(1) { animation-delay: .03s; }
+    .stat-card:nth-child(2) { animation-delay: .06s; }
+    .stat-card:nth-child(3) { animation-delay: .09s; }
+    .stat-card:nth-child(4) { animation-delay: .12s; }
+    .stat-card:nth-child(5) { animation-delay: .15s; }
+    .stat-card:nth-child(6) { animation-delay: .18s; }
+    .delayed { animation-delay: .25s; }
+
+    /* Shine on the running button */
     .btn-shine {
-      /* Removed absolute positioning to work inside the button */
-      /* padding: 12px 48px; /* Removed padding, button handles it */
-      color: #000; /* Fallback color - should match button text color */
-      /* Use a darker gradient for contrast on the white button */
-      background: linear-gradient(to right, #555 0%, #aaa 40%, #555 80%); 
-      background-size: 200% auto; /* Ensure gradient is large enough to animate */
-      background-position: 0;
-      -webkit-background-clip: text;
-      background-clip: text;
+      background: linear-gradient(90deg, #555 0%, #aaa 40%, #555 80%);
+      background-size: 200% auto;
+      -webkit-background-clip: text; background-clip: text;
       -webkit-text-fill-color: transparent;
       animation: shine 2s infinite linear;
-      animation-fill-mode: forwards;
-      -webkit-text-size-adjust: none;
-      font-weight: 600; /* Match button weight or adjust as needed */
-      /* font-size: 16px; /* Use button's font size */
-      text-decoration: none;
-      white-space: nowrap;
-      /* font-family: "Poppins", sans-serif; /* Use button's font family */
-      display: inline-block; /* Ensure it behaves correctly */
-    }
-
-    @-moz-keyframes shine {
-      0% { background-position: 200% center; } /* Start from right */
-      100% { background-position: -200% center; } /* Move to left */
-    }
-    @-webkit-keyframes shine {
-      0% { background-position: 200% center; }
-      100% { background-position: -200% center; }
-    }
-    @-o-keyframes shine {
-      0% { background-position: 200% center; }
-      100% { background-position: -200% center; }
+      font-weight: 600;
     }
     @keyframes shine {
-       0% { background-position: 200% center; } /* Start gradient off-screen right */
-      100% { background-position: -200% center; } /* Move gradient off-screen left */
+      0% { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+
+    /* Hidden util */
+    .hidden { display: none !important; }
+
+    /* Re-check buttons row (appears after a run) */
+    .post-run-actions {
+      display: flex; gap: 0.5rem; margin-top: 0.5rem;
     }
   </style>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 </head>
-<body class="h-screen bg-black">
-  <!-- Main container with padding and max-width -->
-  <div class="max-w-7xl mx-auto p-2 lg:p-4"> <!-- Reduced padding -->
+<body>
+  <div class="max-w-[1400px] mx-auto px-4 py-5">
 
-    <!-- New Dashboard container -->
-    <div id="new-dashboard-container" class="mb-4"> <!-- Reduced bottom margin -->
-      <div class="flex flex-col gap-1 mb-3"> <!-- Reduced gap and bottom margin -->
-        <h2 class="text-xl tracking-tight font-semibold text-foreground"> <!-- Reduced font size -->
-          Bulk Domain Checker
-        </h2>
-        <p class="text-xs text-muted-foreground"> <!-- Reduced font size -->
-          Real-time statistics for your domain checking operation
-        </p>
+    <!-- Header -->
+    <div class="mb-3">
+      <h1 class="app-title">Bulk Domain Checker</h1>
+      <p class="app-subtitle">Real-time statistics for your domain checking operation</p>
+    </div>
+
+    <!-- Unified progress + status bar -->
+    <div class="mb-3">
+      <div id="progress-bar-wrap" class="progress-bar-wrap"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-grid mb-4">
+      <!-- Checked -->
+      <div class="stat-card fade-in">
+        <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div class="stat-card-value">
+          <span id="stat-checked-value">0</span>
+          <span id="stat-checked-percent" class="stat-card-value-suffix">0%</span>
+        </div>
+        <div class="stat-card-title">Checked</div>
+        <div class="stat-card-description">of <span id="stat-total-value">0</span> total</div>
       </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3"> <!-- Reduced gap -->
-        <!-- Stat Card: Checked -->
-        <div class="stat-card fade-in"> <!-- Added fade-in class -->
-          <div class="stat-card-icon text-primary">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
-          <h2 class="stat-card-value">
-            <span id="stat-checked-value">0</span>
-            <span id="stat-checked-percent" class="stat-card-additional-info">0%</span>
-          </h2>
-          <div class="stat-card-text">
-            <p class="stat-card-title">Checked Domains</p>
-            <p class="stat-card-description">Out of <span id="stat-total-value">0</span> total domains</p>
-          </div>
+      <!-- Online -->
+      <div class="stat-card fade-in">
+        <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <div class="stat-card-value">
+          <span id="stat-online-value">0</span>
+          <span id="stat-online-percent" class="stat-card-value-suffix">0%</span>
         </div>
-
-        <!-- Stat Card: Online -->
-        <div class="stat-card fade-in"> <!-- Added fade-in class -->
-          <div class="stat-card-icon text-primary">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          </div>
-          <h2 class="stat-card-value">
-            <span id="stat-online-value">0</span>
-            <span id="stat-online-percent" class="stat-card-additional-info">0%</span>
-          </h2>
-          <div class="stat-card-text">
-            <p class="stat-card-title">Online Domains</p>
-            <p class="stat-card-description">Domains successfully verified</p>
-          </div>
+        <div class="stat-card-title">Online</div>
+        <div class="stat-card-description">Successfully verified</div>
+      </div>
+      <!-- Failed -->
+      <div class="stat-card fade-in">
+        <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+        <div class="stat-card-value">
+          <span id="stat-failed-value">0</span>
+          <span id="stat-failed-percent" class="stat-card-value-suffix">0%</span>
         </div>
-
-        <!-- Stat Card: Failed -->
-        <div class="stat-card fade-in"> <!-- Added fade-in class -->
-          <div class="stat-card-icon text-destructive">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-          </div>
-          <h2 class="stat-card-value">
-            <span id="stat-failed-value">0</span>
-            <span id="stat-failed-percent" class="stat-card-additional-info">0%</span>
-          </h2>
-          <div class="stat-card-text">
-            <p class="stat-card-title">Failed Domains</p>
-            <p class="stat-card-description">Domains that failed verification</p>
-          </div>
+        <div class="stat-card-title">Failed</div>
+        <div class="stat-card-description">Verification failures</div>
+      </div>
+      <!-- Elapsed -->
+      <div class="stat-card fade-in">
+        <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div class="stat-card-value">
+          <span id="stat-elapsed-value">0.0s</span>
         </div>
-
-        <!-- Stat Card: Elapsed -->
-        <div class="stat-card fade-in"> <!-- Added fade-in class -->
-          <div class="stat-card-icon text-secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </div>
-          <h2 class="stat-card-value">
-            <span id="stat-elapsed-value">0.0s</span>
-          </h2>
-          <div class="stat-card-text">
-            <p class="stat-card-title">Elapsed Time</p>
-            <p class="stat-card-description">Total time since operation started</p>
-          </div>
+        <div class="stat-card-title">Elapsed</div>
+        <div class="stat-card-description">Time since start</div>
+      </div>
+      <!-- Speed (with sparkline background) -->
+      <div class="stat-card fade-in">
+        <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.05A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.05A1 1 0 0 0 11 14z"/></svg>
+        <div class="stat-card-value">
+          <span id="stat-speed-value">0.0</span>
+          <span class="stat-card-value-suffix">/s</span>
         </div>
-
-        <!-- Stat Card: Speed -->
-        <div class="stat-card fade-in"> <!-- Added fade-in class -->
-          <div class="stat-card-icon text-info">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.05A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.05A1 1 0 0 0 11 14z"/></svg>
-          </div>
-          <h2 class="stat-card-value">
-            <span id="stat-speed-value">0.0</span>
-          </h2>
-          <div class="stat-card-text">
-            <p class="stat-card-title">Speed</p>
-            <p class="stat-card-description">Domains checked per second</p>
-          </div>
+        <div class="stat-card-title">Speed</div>
+        <div class="stat-card-description">Checks per second</div>
+        <svg class="stat-card-sparkline" id="sparkline-svg" viewBox="0 0 400 40" preserveAspectRatio="none">
+          <path id="sparkline-area" fill="rgba(74,222,128,0.10)" stroke="none"></path>
+          <path id="sparkline-path" fill="none" stroke="#4ade80" stroke-width="1.2" stroke-linejoin="round"></path>
+        </svg>
+      </div>
+      <!-- ETA -->
+      <div class="stat-card fade-in">
+        <svg class="stat-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <div class="stat-card-value">
+          <span id="stat-eta-value">-</span>
         </div>
+        <div class="stat-card-title">ETA</div>
+        <div class="stat-card-description">Time remaining</div>
       </div>
     </div>
 
-    <!-- Flex container for Input/Logs and Results columns -->
-    <div class="flex flex-col lg:flex-row h-full gap-2"> <!-- Reduced gap -->
-      <!-- Input Panel (Left Column) -->
-      <div class="w-full lg:w-1/2 p-4 border border-gray-700 rounded-md bg-black overflow-auto main-content-panel"> <!-- Added main-content-panel class -->
-        <textarea id="domains-input" placeholder="Enter domains, one per line" class="textarea w-full textarea-bordered mb-3" rows="4"></textarea> <!-- Reduced margin and rows -->
+    <!-- Main two-column layout: input+terminal | results -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
-        <button id="check-btn" class="btn btn-primary w-full">
-            <span class="button-text">Check Domains</span> <!-- Wrap text in span -->
-        </button>
-        <!-- Download buttons removed from here -->
+      <!-- LEFT: input + failure reasons + terminal -->
+      <div class="flex flex-col gap-3 fade-in delayed">
+        <div class="panel">
+          <div class="panel-header">
+            <span>Input</span>
+            <span id="input-meta-extra" class="mono" style="text-transform:none;letter-spacing:0;font-size:.7rem"></span>
+          </div>
+          <div class="panel-body">
+            <div id="input-wrap" class="input-wrap">
+              <textarea id="domains-input" class="field" rows="6"
+                placeholder="Enter domains, one per line, or drop a .txt / .csv / .json file here"></textarea>
+              <button id="clear-input-btn" class="clear-input-btn" title="Clear input" type="button">×</button>
+            </div>
+            <div class="input-meta">
+              <span id="input-meta-text">awaiting input…</span>
+              <span class="mono text-[10px]" style="color:var(--text-muted)">⌘ + ↵ to run</span>
+            </div>
+            <div class="flex gap-2 mt-3">
+              <button id="check-btn" class="btn btn-primary flex-1" type="button">
+                <span class="button-text">Check Domains</span>
+              </button>
+              <button id="cancel-btn" class="btn btn-danger hidden" type="button">Cancel</button>
+            </div>
+            <div id="post-run-actions" class="post-run-actions hidden">
+              <button id="recheck-failed-btn" class="btn btn-ghost btn-sm flex-1" type="button">↻ Re-check failed</button>
+              <button id="recheck-all-btn" class="btn btn-ghost btn-sm flex-1" type="button">↻ Re-check all</button>
+            </div>
+            <details class="settings">
+              <summary>Advanced</summary>
+              <div class="settings-grid">
+                <div>
+                  <label for="timeout-input">Timeout (s)</label>
+                  <input id="timeout-input" class="field" type="number" min="0.5" max="60" step="0.5" value="5">
+                </div>
+                <div>
+                  <label for="workers-input">Concurrency</label>
+                  <input id="workers-input" class="field" type="number" min="1" max="500" step="1" value="100">
+                </div>
+                <div class="settings-row-full">
+                  <label for="dns-mode-input">DNS Mode</label>
+                  <select id="dns-mode-input" class="field">
+                    <option value="system" selected>System DNS (what your machine sees)</option>
+                    <option value="direct">Public DNS (query 1.1.1.1 / 8.8.8.8 directly)</option>
+                  </select>
+                  <p class="settings-help">
+                    <strong>System</strong> uses your machine's resolver. It honours firewalls, /etc/hosts, VPN, and corporate DNS to represent what you'd actually see when visiting the site.<br>
+                    <strong>Public</strong> queries Cloudflare (1.1.1.1), Google (8.8.8.8) and Quad9 (9.9.9.9) directly via UDP. It bypasses /etc/hosts and local DNS overrides to tell you if the domain exists on the public internet regardless of your network. This is useful for diagnosing what your firewall or DNS policy is blocking.
+                  </p>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
 
-        <!-- Log Panel -->
-        <div id="log-panel" class="mt-4 hidden"> <!-- Reduced margin -->
-          <div class="terminal-header">Terminal Logs</div>
+        <div id="failure-reasons" class="panel hidden">
+          <div class="panel-header">
+            <span>Failure Reasons</span>
+            <span style="font-size:.65rem;color:var(--text-muted);text-transform:none;letter-spacing:0">click to filter</span>
+          </div>
+          <div class="panel-body">
+            <div id="failure-reasons-list" class="reasons-list"></div>
+          </div>
+        </div>
+
+        <div id="terminal" class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dots"><span></span><span></span><span></span></div>
+            <div class="terminal-title">Terminal</div>
+            <div class="terminal-status mono" id="log-status">idle</div>
+          </div>
           <div id="logs"></div>
         </div>
       </div>
 
-      <!-- Results Panel (Right Column) -->
-      <div id="results-panel" class="w-full lg:w-1/2 p-4 rounded-md bg-black overflow-auto flex flex-col main-content-panel"> <!-- Added id, removed border classes -->
-        <div id="results-container" class="hidden flex-grow overflow-auto"> <!-- Added flex-grow and overflow-auto -->
-          <table id="results-table" class="table table-zebra w-full">
+      <!-- RIGHT: results -->
+      <div class="panel fade-in delayed flex flex-col" style="min-height:400px">
+        <div class="results-toolbar">
+          <div class="flex items-center gap-2">
+            <span class="results-search-wrap">
+              <input id="results-search" class="results-search" type="text" placeholder="search…">
+            </span>
+            <span id="active-filter-pills"></span>
+          </div>
+          <div id="results-count" class="results-count">no results yet</div>
+        </div>
+        <div id="results-container" class="hidden flex-grow">
+          <table class="results-table">
             <thead>
               <tr>
-                <th>Domain</th>
-                <th>Status</th>
-                <th>Detail</th>
+                <th data-sort="domain">Domain<span class="sort-arrow">↕</span></th>
+                <th data-sort="ok">Status<span class="sort-arrow">↕</span></th>
+                <th data-sort="detail">Detail<span class="sort-arrow">↕</span></th>
+                <th data-sort="elapsed_ms">Time<span class="sort-arrow">↕</span></th>
               </tr>
             </thead>
-            <tbody>
-              <!-- Results will be populated here -->
-            </tbody>
+            <tbody id="results-tbody"></tbody>
           </table>
         </div>
-        <!-- Download Buttons Container -->
-        <div id="download-buttons-container" class="mt-2 flex justify-end gap-2 hidden"> <!-- Added container, hidden initially, flex layout -->
-            <button id="download-csv-btn" class="btn btn-primary btn-sm">Download CSV</button>
-            <button id="download-txt-btn" class="btn btn-primary btn-sm">Download TXT</button>
+        <div id="results-empty" class="flex-grow flex items-center justify-center">
+          <div class="text-center mono" style="color:var(--text-muted);font-size:.78rem;line-height:1.6">
+            <div style="font-size:1.4rem;color:var(--text-dim);margin-bottom:.5rem">∅</div>
+            results stream in here<br>
+            <span style="font-size:.7rem">paste domains and press check</span>
+          </div>
+        </div>
+        <div id="download-buttons-container" class="hidden flex justify-end gap-2 px-3 py-3 border-t" style="border-color:var(--border)">
+          <button id="download-csv-btn" class="btn btn-ghost btn-sm">Download CSV</button>
+          <button id="download-json-btn" class="btn btn-ghost btn-sm">Download JSON</button>
+          <button id="download-txt-btn" class="btn btn-ghost btn-sm">Download TXT</button>
         </div>
       </div>
     </div>
+  </div>
 
-  </div> <!-- End main container -->
+  <div id="toast-container"></div>
   <script src="/static/script.js"></script>
 </body>
 </html>
