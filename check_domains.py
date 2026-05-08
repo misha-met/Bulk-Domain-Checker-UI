@@ -283,15 +283,15 @@ async def _try_one(
 
 
 async def _try_one_following_redirects(
-    client: AsyncClient, url: str, *, allow_get_fallback: bool = True
+    client: AsyncClient, url: str, *, allow_head_fallback: bool = True
 ) -> tuple[httpx.Response | None, BaseException | None, str]:
-    """Issue HEAD with redirects enabled; on 405, retry with GET."""
-    method = "HEAD"
+    """Issue browser-like GET with redirects enabled; fall back to HEAD on 405."""
+    method = "GET"
     try:
-        resp = await client.request("HEAD", url, follow_redirects=True)
-        if resp.status_code == 405 and allow_get_fallback:
-            method = "GET"
-            resp = await client.get(url, follow_redirects=True)
+        resp = await client.get(url, follow_redirects=True)
+        if resp.status_code == 405 and allow_head_fallback:
+            method = "HEAD"
+            resp = await client.request("HEAD", url, follow_redirects=True)
         return resp, None, method
     except asyncio.CancelledError:
         raise
@@ -533,6 +533,11 @@ async def inspect_redirect_chain(
                 last_method = method
                 if resp is not None:
                     chain = _build_redirect_chain(resp)
+                    meta = _response_meta(resp)
+                    first_redirect = next(
+                        (hop.get("location_header") for hop in chain if hop.get("location_header")),
+                        None,
+                    )
                     return {
                         "domain": domain,
                         "ok": True,
@@ -540,8 +545,14 @@ async def inspect_redirect_chain(
                         "request_method": method,
                         "protocol": proto,
                         "dns_addresses": dns_addresses,
+                        "attempted_protocols": attempted_protocols,
                         "final_url": str(resp.url),
                         "final_status_code": resp.status_code,
+                        "elapsed_ms": meta["elapsed_ms"],
+                        "http_version": meta["http_version"],
+                        "server": meta["server"],
+                        "content_type": meta["content_type"],
+                        "redirect_location": first_redirect,
                         "chain": chain,
                         "redirect_count": max(len(chain) - 1, 0),
                     }

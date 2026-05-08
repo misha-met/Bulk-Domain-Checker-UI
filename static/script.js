@@ -79,9 +79,9 @@ let currentRunMeta = {
   startedAt: null,
 };
 let selectedDetailDomain = null;
+let selectedDetailDiagnostics = null;
 let lastFocusedBeforeModal = null;
 let detailAbortController = null;
-const detailDiagnosticsCache = new Map();
 
 const speedSamples = [];
 const SPARK_WINDOW_SEC = 60;
@@ -327,7 +327,7 @@ function getRunMeta() {
 
 function detailExportPayload(result) {
   const runMeta = getRunMeta();
-  const diagnostics = detailDiagnosticsCache.get(result.domain) || null;
+  const diagnostics = selectedDetailDomain === result.domain ? selectedDetailDiagnostics : null;
   const overview = {
     outcome: describeOutcome(result),
     request_path: describeRequestPath(result),
@@ -356,9 +356,18 @@ function detailExportPayload(result) {
       content_type: result.content_type ?? null,
     },
     diagnostics: diagnostics ? {
+      request_method: diagnostics.request_method ?? null,
+      protocol: diagnostics.protocol ?? null,
       final_url: diagnostics.final_url ?? null,
       final_status_code: diagnostics.final_status_code ?? null,
       redirect_count: diagnostics.redirect_count ?? null,
+      elapsed_ms: diagnostics.elapsed_ms ?? null,
+      http_version: diagnostics.http_version ?? null,
+      redirect_location: diagnostics.redirect_location ?? null,
+      server: diagnostics.server ?? null,
+      content_type: diagnostics.content_type ?? null,
+      attempted_protocols: diagnostics.attempted_protocols ?? [],
+      category: diagnostics.category ?? null,
       chain: diagnostics.chain ?? [],
     } : null,
     run: {
@@ -373,28 +382,41 @@ function detailExportPayload(result) {
 
 function detailExportText(result) {
   const payload = detailExportPayload(result);
+  const hasDiagnostics = Boolean(payload.diagnostics);
   const lines = [
     'Bulk Domain Checker Detailed Result',
     '',
     `Domain: ${result.domain}`,
-    `Outcome: ${payload.overview.outcome}`,
-    `Detail: ${result.detail || '-'}`,
-    `Request Path: ${payload.overview.request_path}`,
+    `${hasDiagnostics ? 'Scan Outcome' : 'Outcome'}: ${payload.overview.outcome}`,
+    `${hasDiagnostics ? 'Scan Detail' : 'Detail'}: ${result.detail || '-'}`,
+    `${hasDiagnostics ? 'Scan Request Path' : 'Request Path'}: ${payload.overview.request_path}`,
     `DNS Mode: ${payload.overview.dns_mode}`,
     `Protocol: ${result.protocol || '-'}`,
-    `Method: ${result.request_method || '-'}`,
-    `Status Code: ${result.status_code ?? '-'}`,
-    `Elapsed: ${result.elapsed_ms != null ? `${result.elapsed_ms} ms` : '-'}`,
-    `HTTP Version: ${result.http_version || '-'}`,
-    `Server: ${result.server || '-'}`,
-    `Content-Type: ${result.content_type || '-'}`,
-    `Redirect Location: ${result.redirect_location || '-'}`,
+    `${hasDiagnostics ? 'Scan Method' : 'Method'}: ${result.request_method || '-'}`,
+    `${hasDiagnostics ? 'Scan Status Code' : 'Status Code'}: ${result.status_code ?? '-'}`,
+    `${hasDiagnostics ? 'Scan Elapsed' : 'Elapsed'}: ${result.elapsed_ms != null ? `${result.elapsed_ms} ms` : '-'}`,
+    `${hasDiagnostics ? 'Scan HTTP Version' : 'HTTP Version'}: ${result.http_version || '-'}`,
+    `${hasDiagnostics ? 'Scan Server' : 'Server'}: ${result.server || '-'}`,
+    `${hasDiagnostics ? 'Scan Content-Type' : 'Content-Type'}: ${result.content_type || '-'}`,
+    `${hasDiagnostics ? 'Scan Redirect Location' : 'Redirect Location'}: ${result.redirect_location || '-'}`,
     `Resolved Addresses: ${(result.dns_addresses || []).join(', ') || '-'}`,
-    `Attempted Protocols: ${(result.attempted_protocols || []).join(' -> ') || '-'}`,
+    `${hasDiagnostics ? 'Scan Attempted Protocols' : 'Attempted Protocols'}: ${(result.attempted_protocols || []).join(' -> ') || '-'}`,
   ];
-  if (payload.diagnostics?.final_url) lines.push(`Final URL: ${payload.diagnostics.final_url}`);
-  if (payload.diagnostics?.final_status_code != null) lines.push(`Final Status Code: ${payload.diagnostics.final_status_code}`);
-  if (payload.diagnostics?.redirect_count != null) lines.push(`Redirect Count: ${payload.diagnostics.redirect_count}`);
+  if (payload.diagnostics) {
+    lines.push('');
+    lines.push('Browser Follow-Up:');
+    lines.push(`Method: ${payload.diagnostics.request_method || '-'}`);
+    lines.push(`Protocol: ${payload.diagnostics.protocol || '-'}`);
+    if (payload.diagnostics.final_status_code != null) lines.push(`Final Status Code: ${payload.diagnostics.final_status_code}`);
+    if (payload.diagnostics.elapsed_ms != null) lines.push(`Elapsed: ${payload.diagnostics.elapsed_ms} ms`);
+    if (payload.diagnostics.http_version) lines.push(`HTTP Version: ${payload.diagnostics.http_version}`);
+    if (payload.diagnostics.server) lines.push(`Server: ${payload.diagnostics.server}`);
+    if (payload.diagnostics.content_type) lines.push(`Content-Type: ${payload.diagnostics.content_type}`);
+    if (payload.diagnostics.redirect_location) lines.push(`Redirect Location: ${payload.diagnostics.redirect_location}`);
+    if (payload.diagnostics.attempted_protocols?.length) lines.push(`Attempted Protocols: ${payload.diagnostics.attempted_protocols.join(' -> ')}`);
+    if (payload.diagnostics.final_url) lines.push(`Final URL: ${payload.diagnostics.final_url}`);
+    if (payload.diagnostics.redirect_count != null) lines.push(`Redirect Count: ${payload.diagnostics.redirect_count}`);
+  }
   if (payload.diagnostics?.chain?.length) {
     lines.push('');
     lines.push('Redirect Chain:');
@@ -420,6 +442,24 @@ function renderDetailChips(target, values) {
   `).join('')}</div>`;
 }
 
+function buildDetailSummary(result, diagnostics = null) {
+  const base = describeResultSummary(result);
+  if (!diagnostics?.ok) return base;
+
+  if (diagnostics.redirect_count > 0) {
+    const finalStatus = diagnostics.final_status_code != null ? ` ${diagnostics.final_status_code}` : '';
+    const finalUrl = diagnostics.final_url ? ` at ${diagnostics.final_url}` : '';
+    return `${base} Browser-style follow-up ${diagnostics.request_method || 'GET'} followed ${diagnostics.redirect_count} redirect${diagnostics.redirect_count === 1 ? '' : 's'} and ended on${finalStatus}${finalUrl}.`;
+  }
+
+  if (diagnostics.final_status_code != null && diagnostics.final_status_code !== result.status_code) {
+    const finalUrl = diagnostics.final_url ? ` at ${diagnostics.final_url}` : '';
+    return `${base} Browser-style follow-up ${diagnostics.request_method || 'GET'} ended on ${diagnostics.final_status_code}${finalUrl}.`;
+  }
+
+  return base;
+}
+
 function renderRedirectChain(data) {
   if (!data) {
     detailRedirectChain.innerHTML = '<div class="detail-empty">Redirect diagnostics are unavailable for this result.</div>';
@@ -434,6 +474,7 @@ function renderRedirectChain(data) {
   }
 
   const summaryBits = [];
+  if (data.request_method) summaryBits.push(`Browser Follow-Up: ${data.request_method}`);
   if (data.redirect_count != null) summaryBits.push(`${data.redirect_count} Redirect${data.redirect_count === 1 ? '' : 's'}`);
   if (data.final_url) summaryBits.push(`Final URL: ${data.final_url}`);
 
@@ -455,13 +496,21 @@ function renderRedirectChain(data) {
 }
 
 function renderDetailMeta(result, diagnostics = null) {
+  const method = diagnostics?.request_method || result.request_method;
+  const httpVersion = diagnostics?.http_version || result.http_version;
+  const redirectLocation = diagnostics?.redirect_location || result.redirect_location;
+  const server = diagnostics?.server || result.server;
+  const contentType = diagnostics?.content_type || result.content_type;
+  const attemptedProtocols = diagnostics?.attempted_protocols?.length
+    ? diagnostics.attempted_protocols
+    : (result.attempted_protocols || []);
   const meta = [
-    ['Request Method', result.request_method],
-    ['HTTP Version', result.http_version],
-    ['Redirect Location', result.redirect_location],
-    ['Server Header', result.server],
-    ['Content-Type', result.content_type],
-    ['Attempted Protocols', (result.attempted_protocols || []).join(' -> ') || null],
+    ['Request Method', method],
+    ['HTTP Version', httpVersion],
+    ['Redirect Location', redirectLocation],
+    ['Server Header', server],
+    ['Content-Type', contentType],
+    ['Attempted Protocols', attemptedProtocols.join(' -> ') || null],
     ['Final URL', diagnostics?.final_url || null],
     ['Redirect Count', diagnostics?.redirect_count != null ? String(diagnostics.redirect_count) : null],
   ].filter(([, value]) => value);
@@ -531,6 +580,7 @@ function closeDetailModal() {
   resultDetailModal.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('modal-open');
   selectedDetailDomain = null;
+  selectedDetailDiagnostics = null;
   if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === 'function') {
     lastFocusedBeforeModal.focus();
   }
@@ -538,14 +588,8 @@ function closeDetailModal() {
 }
 
 async function loadDetailDiagnostics(result) {
-  const cached = detailDiagnosticsCache.get(result.domain);
-  if (cached) {
-    renderRedirectChain(cached);
-    renderDetailMeta(result, cached);
-    return;
-  }
-
   if (!(result.protocol || result.status_code != null)) {
+    selectedDetailDiagnostics = null;
     renderRedirectChain({
       error: 'No successful HTTP response was captured for this result, so there is no redirect chain to inspect.',
       chain: [],
@@ -564,6 +608,7 @@ async function loadDetailDiagnostics(result) {
     const response = await fetch('/inspect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
       body: JSON.stringify({
         domain: result.domain,
         timeout: runMeta.timeout,
@@ -578,12 +623,14 @@ async function loadDetailDiagnostics(result) {
     }
     const diagnostics = await response.json();
     if (controller !== detailAbortController || selectedDetailDomain !== result.domain) return;
-    detailDiagnosticsCache.set(result.domain, diagnostics);
+    selectedDetailDiagnostics = diagnostics;
+    resultDetailSummary.textContent = buildDetailSummary(result, diagnostics);
     renderRedirectChain(diagnostics);
     renderDetailMeta(result, diagnostics);
   } catch (err) {
     if (err.name === 'AbortError') return;
     if (controller !== detailAbortController || selectedDetailDomain !== result.domain) return;
+    selectedDetailDiagnostics = null;
     renderRedirectChain({
       error: err.message || 'Redirect diagnostics could not be loaded.',
       chain: [],
@@ -598,6 +645,7 @@ function openDetailModal(result, triggerEl = null) {
   if (!result) return;
   lastFocusedBeforeModal = triggerEl || document.activeElement;
   selectedDetailDomain = result.domain;
+  selectedDetailDiagnostics = null;
   const runMeta = getRunMeta();
   const overviewCards = [
     ['Outcome', describeOutcome(result)],
@@ -821,7 +869,6 @@ async function startRun() {
   // Reset
   currentResults = [];
   speedSamples.length = 0;
-  detailDiagnosticsCache.clear();
   categoryFilter = null;
   searchQuery = '';
   sortKey = null;
@@ -1325,7 +1372,6 @@ function restoreLastRun() {
 
   currentResults = payload.results;
   currentRunTotal = total;
-  detailDiagnosticsCache.clear();
   currentRunMeta = {
     total,
     timeout: payload.meta?.timeout ?? (Number(timeoutInput.value) || 5),
