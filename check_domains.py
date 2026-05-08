@@ -86,32 +86,42 @@ class Resolver:
         else:
             raise ValueError(f"Unknown DNS mode: {mode!r}")
 
-    async def resolve(self, host: str) -> tuple[bool, str | None]:
-        """Resolve `host`. Returns (ok, error_detail_if_failed)."""
+    async def resolve(self, host: str) -> tuple[bool, str | None, list[str] | None]:
+        """Resolve `host`. Returns (ok, error_detail_if_failed, addresses)."""
         if self.mode == "system":
             return await self._resolve_system(host)
         return await self._resolve_direct(host)
 
-    async def _resolve_system(self, host: str) -> tuple[bool, str | None]:
+    async def _resolve_system(self, host: str) -> tuple[bool, str | None, list[str] | None]:
         loop = asyncio.get_running_loop()
         last_msg = "DNS failed"
         # One retry on transient errors (EAI_AGAIN). NXDOMAIN-class errors
         # are returned immediately because there is no point retrying a confirmed "no such host".
         for attempt in range(2):
             try:
-                await asyncio.wait_for(
+                infos = await asyncio.wait_for(
                     loop.run_in_executor(
                         self._executor, socket.getaddrinfo, host, None
                     ),
                     timeout=self.timeout,
                 )
-                return True, None
+                addresses: list[str] = []
+                seen = set()
+                for info in infos:
+                    sockaddr = info[4]
+                    if not sockaddr:
+                        continue
+                    addr = sockaddr[0]
+                    if addr not in seen:
+                        seen.add(addr)
+                        addresses.append(addr)
+                return True, None, addresses or None
             except asyncio.TimeoutError:
                 last_msg = "DNS timeout"
                 # A timeout is transient enough to retry once.
                 if attempt == 0:
                     continue
-                return False, last_msg
+                return False, last_msg, None
             except socket.gaierror as e:
                 # macOS / Linux gaierror codes worth distinguishing:
                 #   EAI_AGAIN (3 / -3): transient error, try again.
@@ -120,12 +130,12 @@ class Resolver:
                     await asyncio.sleep(0.1)
                     last_msg = f"DNS transient: {e.strerror or str(e)}"
                     continue
-                return False, _gai_message(e)
+                return False, _gai_message(e), None
             except OSError as e:
-                return False, f"DNS error: {_truncate(str(e), 60)}"
-        return False, last_msg
+                return False, f"DNS error: {_truncate(str(e), 60)}", None
+        return False, last_msg, None
 
-    async def _resolve_direct(self, host: str) -> tuple[bool, str | None]:
+    async def _resolve_direct(self, host: str) -> tuple[bool, str | None, list[str] | None]:
         """Resolve via aiodns. Race A and AAAA records and succeed if either resolves
         so IPv6-only hosts aren't false negatives."""
         import aiodns  # type: ignore
@@ -143,8 +153,15 @@ class Resolver:
                 )
                 for t in done:
                     try:
-                        t.result()
-                        return True, None
+                        answers = t.result()
+                        addresses: list[str] = []
+                        seen = set()
+                        for answer in answers:
+                            addr = getattr(answer, "host", None)
+                            if addr and addr not in seen:
+                                seen.add(addr)
+                                addresses.append(addr)
+                        return True, None, addresses or None
                     except asyncio.CancelledError:
                         raise
                     except BaseException as e:  # noqa: BLE001
@@ -162,15 +179,15 @@ class Resolver:
             # c-ares error codes (subset we care about):
             #   1=ENODATA 4=ENOTFOUND (NXDOMAIN) 11=ETIMEOUT 6=EREFUSED
             if code == 4:
-                return False, "DNS: no record (NXDOMAIN)"
+                return False, "DNS: no record (NXDOMAIN)", None
             if code == 1:
-                return False, "DNS: no A or AAAA record"
+                return False, "DNS: no A or AAAA record", None
             if code == 11:
-                return False, "DNS: timeout (direct)"
+                return False, "DNS: timeout (direct)", None
             if code == 6:
-                return False, "DNS: refused by public resolver"
-            return False, f"DNS: {_truncate(str(msg), 60)}"
-        return False, f"DNS error: {_truncate(str(last_err) if last_err else 'unknown', 60)}"
+                return False, "DNS: refused by public resolver", None
+            return False, f"DNS: {_truncate(str(msg), 60)}", None
+        return False, f"DNS error: {_truncate(str(last_err) if last_err else 'unknown', 60)}", None
 
     def close(self) -> None:
         if self._executor is not None:
@@ -197,6 +214,13 @@ class CheckResult:
     status_code: int | None = None
     elapsed_ms: float | None = None
     protocol: str | None = None  # "https" or "http"
+    dns_addresses: list[str] | None = None
+    attempted_protocols: list[str] | None = None
+    request_method: str | None = None
+    http_version: str | None = None
+    redirect_location: str | None = None
+    server: str | None = None
+    content_type: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -243,17 +267,47 @@ def _truncate(s: str, n: int = 80) -> str:
 
 async def _try_one(
     client: AsyncClient, url: str, *, allow_get_fallback: bool = True
-) -> tuple[httpx.Response | None, BaseException | None]:
+) -> tuple[httpx.Response | None, BaseException | None, str]:
     """Issue HEAD; on 405, retry the same URL with GET. Returns (response, error)."""
+    method = "HEAD"
     try:
         resp = await client.request("HEAD", url, follow_redirects=False)
         if resp.status_code == 405 and allow_get_fallback:
+            method = "GET"
             resp = await client.get(url, follow_redirects=False)
-        return resp, None
+        return resp, None, method
     except asyncio.CancelledError:
         raise
     except BaseException as e:  # noqa: BLE001 to surface every kind of failure
-        return None, e
+        return None, e, method
+
+
+async def _try_one_following_redirects(
+    client: AsyncClient, url: str, *, allow_get_fallback: bool = True
+) -> tuple[httpx.Response | None, BaseException | None, str]:
+    """Issue HEAD with redirects enabled; on 405, retry with GET."""
+    method = "HEAD"
+    try:
+        resp = await client.request("HEAD", url, follow_redirects=True)
+        if resp.status_code == 405 and allow_get_fallback:
+            method = "GET"
+            resp = await client.get(url, follow_redirects=True)
+        return resp, None, method
+    except asyncio.CancelledError:
+        raise
+    except BaseException as e:  # noqa: BLE001 to surface every kind of failure
+        return None, e, method
+
+
+def _response_meta(resp: httpx.Response) -> dict:
+    return {
+        "status_code": resp.status_code,
+        "elapsed_ms": round(resp.elapsed.total_seconds() * 1000, 1) if resp.elapsed else None,
+        "http_version": resp.http_version or None,
+        "redirect_location": resp.headers.get("location"),
+        "server": resp.headers.get("server"),
+        "content_type": resp.headers.get("content-type"),
+    }
 
 
 async def check(domain: str, client: AsyncClient, resolver: Resolver) -> CheckResult:
@@ -266,9 +320,16 @@ async def check(domain: str, client: AsyncClient, resolver: Resolver) -> CheckRe
     # Bad domains fail fast (~ms instead of HTTP-timeout seconds), and the
     # resolver mode determines whether we honour local network rules
     # (system) or query public DNS (direct).
-    ok, dns_err = await resolver.resolve(host)
+    ok, dns_err, dns_addresses = await resolver.resolve(host)
     if not ok:
-        return CheckResult(domain=domain, ok=False, detail=dns_err or "DNS failed", category="dns")
+        return CheckResult(
+            domain=domain,
+            ok=False,
+            detail=dns_err or "DNS failed",
+            category="dns",
+            dns_addresses=dns_addresses,
+            attempted_protocols=[],
+        )
 
     # ── HTTPS first; HTTP only as a connection-class fallback. ──────────────
     # The previous design raced HTTPS + HTTP and took whichever responded
@@ -284,49 +345,240 @@ async def check(domain: str, client: AsyncClient, resolver: Resolver) -> CheckRe
     #      mask the real failure.
     #   4. If HTTPS fails with a connection-class error (refused, no route,
     #      timeout) → fall back to HTTP, since the site might be HTTP-only.
-    https_resp, https_err = await _try_one(client, f"https://{host}")
+    attempted_protocols = ["https"]
+    https_resp, https_err, https_method = await _try_one(client, f"https://{host}")
     if https_resp is not None and https_resp.status_code < 400:
-        return _online(domain, https_resp, "https")
+        return _online(
+            domain,
+            https_resp,
+            "https",
+            request_method=https_method,
+            dns_addresses=dns_addresses,
+            attempted_protocols=attempted_protocols,
+        )
     if https_resp is not None:
-        return _http_error(domain, https_resp, "https")
+        return _http_error(
+            domain,
+            https_resp,
+            "https",
+            request_method=https_method,
+            dns_addresses=dns_addresses,
+            attempted_protocols=attempted_protocols,
+        )
     if https_err is not None:
         category, detail = _categorize_exception(https_err)
         if category == "ssl":
-            return CheckResult(domain=domain, ok=False, detail=detail, category="ssl")
+            return CheckResult(
+                domain=domain,
+                ok=False,
+                detail=detail,
+                category="ssl",
+                dns_addresses=dns_addresses,
+                attempted_protocols=attempted_protocols,
+                request_method=https_method,
+            )
         # Since there was a connection-class failure on HTTPS, try HTTP as a graceful fallback.
 
-    http_resp, http_err = await _try_one(client, f"http://{host}")
+    attempted_protocols.append("http")
+    http_resp, http_err, http_method = await _try_one(client, f"http://{host}")
     if http_resp is not None and http_resp.status_code < 400:
-        return _online(domain, http_resp, "http")
+        return _online(
+            domain,
+            http_resp,
+            "http",
+            request_method=http_method,
+            dns_addresses=dns_addresses,
+            attempted_protocols=attempted_protocols,
+        )
     if http_resp is not None:
-        return _http_error(domain, http_resp, "http")
+        return _http_error(
+            domain,
+            http_resp,
+            "http",
+            request_method=http_method,
+            dns_addresses=dns_addresses,
+            attempted_protocols=attempted_protocols,
+        )
 
     # Both failed. Prefer HTTPS error info since that's the canonical endpoint.
     last_exc = https_err or http_err
     category, detail = (
         _categorize_exception(last_exc) if last_exc else ("other", "Unknown error")
     )
-    return CheckResult(domain=domain, ok=False, detail=detail, category=category)
-
-
-def _online(domain: str, resp: httpx.Response, proto: str) -> CheckResult:
-    elapsed = resp.elapsed.total_seconds() * 1000 if resp.elapsed else None
     return CheckResult(
-        domain=domain, ok=True, detail=str(resp.status_code), category="online",
-        status_code=resp.status_code,
-        elapsed_ms=round(elapsed, 1) if elapsed is not None else None,
-        protocol=proto,
+        domain=domain,
+        ok=False,
+        detail=detail,
+        category=category,
+        dns_addresses=dns_addresses,
+        attempted_protocols=attempted_protocols,
+        request_method=http_method if http_err is not None else https_method,
     )
 
 
-def _http_error(domain: str, resp: httpx.Response, proto: str) -> CheckResult:
-    elapsed = resp.elapsed.total_seconds() * 1000 if resp.elapsed else None
+def _online(
+    domain: str,
+    resp: httpx.Response,
+    proto: str,
+    *,
+    request_method: str | None = None,
+    dns_addresses: list[str] | None = None,
+    attempted_protocols: list[str] | None = None,
+) -> CheckResult:
+    meta = _response_meta(resp)
     return CheckResult(
-        domain=domain, ok=False, detail=f"HTTP {resp.status_code}",
-        category="http_error", status_code=resp.status_code,
-        elapsed_ms=round(elapsed, 1) if elapsed is not None else None,
+        domain=domain,
+        ok=True,
+        detail=str(resp.status_code),
+        category="online",
         protocol=proto,
+        dns_addresses=dns_addresses,
+        attempted_protocols=attempted_protocols,
+        request_method=request_method,
+        **meta,
     )
+
+
+def _http_error(
+    domain: str,
+    resp: httpx.Response,
+    proto: str,
+    *,
+    request_method: str | None = None,
+    dns_addresses: list[str] | None = None,
+    attempted_protocols: list[str] | None = None,
+) -> CheckResult:
+    meta = _response_meta(resp)
+    return CheckResult(
+        domain=domain,
+        ok=False,
+        detail=f"HTTP {resp.status_code}",
+        category="http_error",
+        protocol=proto,
+        dns_addresses=dns_addresses,
+        attempted_protocols=attempted_protocols,
+        request_method=request_method,
+        **meta,
+    )
+
+
+def _build_redirect_chain(resp: httpx.Response) -> list[dict]:
+    chain_responses = [*resp.history, resp]
+    chain: list[dict] = []
+    for idx, item in enumerate(chain_responses):
+        next_url = (
+            str(chain_responses[idx + 1].request.url)
+            if idx + 1 < len(chain_responses)
+            else None
+        )
+        chain.append(
+            {
+                "step": idx + 1,
+                "url": str(item.request.url),
+                "status_code": item.status_code,
+                "method": item.request.method,
+                "http_version": item.http_version or None,
+                "location_header": item.headers.get("location"),
+                "next_url": next_url,
+            }
+        )
+    return chain
+
+
+async def inspect_redirect_chain(
+    domain: str,
+    timeout: float,
+    dns_mode: DnsMode = "system",
+    protocol_hint: str | None = None,
+) -> dict:
+    """Fetch redirect-chain diagnostics on demand for the detail modal."""
+    host = _extract_host(domain)
+    if not host:
+        return {
+            "domain": domain,
+            "ok": False,
+            "error": "Invalid domain",
+            "category": "other",
+            "chain": [],
+        }
+
+    resolver = Resolver(mode=dns_mode, concurrency=16, timeout=3.0)
+    try:
+        ok, dns_err, dns_addresses = await resolver.resolve(host)
+        if not ok:
+            return {
+                "domain": domain,
+                "ok": False,
+                "error": dns_err or "DNS failed",
+                "category": "dns",
+                "dns_addresses": dns_addresses,
+                "chain": [],
+            }
+
+        protocols: list[str] = []
+        if protocol_hint in {"http", "https"}:
+            protocols.append(protocol_hint)
+        for proto in ("https", "http"):
+            if proto not in protocols:
+                protocols.append(proto)
+
+        async with _make_client(timeout, 4) as client:
+            attempted_protocols: list[str] = []
+            last_error: BaseException | None = None
+            last_method: str | None = None
+
+            for proto in protocols:
+                attempted_protocols.append(proto)
+                resp, err, method = await _try_one_following_redirects(client, f"{proto}://{host}")
+                last_method = method
+                if resp is not None:
+                    chain = _build_redirect_chain(resp)
+                    return {
+                        "domain": domain,
+                        "ok": True,
+                        "category": "online" if resp.status_code < 400 else "http_error",
+                        "request_method": method,
+                        "protocol": proto,
+                        "dns_addresses": dns_addresses,
+                        "final_url": str(resp.url),
+                        "final_status_code": resp.status_code,
+                        "chain": chain,
+                        "redirect_count": max(len(chain) - 1, 0),
+                    }
+
+                last_error = err
+                if err is not None:
+                    category, detail = _categorize_exception(err)
+                    if category == "ssl":
+                        return {
+                            "domain": domain,
+                            "ok": False,
+                            "error": detail,
+                            "category": "ssl",
+                            "request_method": method,
+                            "protocol": proto,
+                            "dns_addresses": dns_addresses,
+                            "attempted_protocols": attempted_protocols,
+                            "chain": [],
+                        }
+                    if proto == "http":
+                        break
+
+            category, detail = (
+                _categorize_exception(last_error) if last_error else ("other", "Unknown error")
+            )
+            return {
+                "domain": domain,
+                "ok": False,
+                "error": detail,
+                "category": category,
+                "request_method": last_method,
+                "dns_addresses": dns_addresses,
+                "attempted_protocols": attempted_protocols,
+                "chain": [],
+            }
+    finally:
+        resolver.close()
 
 
 def _make_client(timeout: float, workers: int) -> AsyncClient:

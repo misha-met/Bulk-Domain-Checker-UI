@@ -42,6 +42,17 @@ const MAX_PERSISTED_RESULTS = 10_000; // ~1.5MB serialized; localStorage cap is 
 const failureReasonsPanel = $('failure-reasons');
 const failureReasonsList = $('failure-reasons-list');
 const activeFilterPills = $('active-filter-pills');
+const resultDetailModal = $('result-detail-modal');
+const resultDetailTitle = $('result-detail-title');
+const resultDetailSummary = $('result-detail-summary');
+const detailOverviewGrid = $('detail-overview-grid');
+const detailDnsAddresses = $('detail-dns-addresses');
+const detailRedirectChain = $('detail-redirect-chain');
+const detailResponseMeta = $('detail-response-meta');
+const detailCopyBtn = $('detail-copy-btn');
+const detailExportJsonBtn = $('detail-export-json-btn');
+const detailExportTxtBtn = $('detail-export-txt-btn');
+const detailCloseBtn = $('detail-close-btn');
 
 const terminal = $('terminal');
 const logsContainer = $('logs');
@@ -60,6 +71,17 @@ let sortKey = null;
 let sortDir = 1;
 let searchQuery = '';
 let categoryFilter = null;
+let currentRunMeta = {
+  total: 0,
+  timeout: Number(timeoutInput.value) || 5,
+  workers: Number(workersInput.value) || 100,
+  dnsMode: dnsModeInput.value || 'system',
+  startedAt: null,
+};
+let selectedDetailDomain = null;
+let lastFocusedBeforeModal = null;
+let detailAbortController = null;
+const detailDiagnosticsCache = new Map();
 
 const speedSamples = [];
 const SPARK_WINDOW_SEC = 60;
@@ -67,13 +89,13 @@ const ETA_WINDOW = 20;
 
 // Categories follow a scheme where online is green, errors are red, and the rest use grayscale shades.
 const CATEGORIES = {
-  online:      { label: 'online',      color: '#4ade80', dim: 'rgba(74,222,128,0.15)' },
-  http_error:  { label: 'http error',  color: '#9ca3af', dim: 'rgba(156,163,175,0.15)' },
-  timeout:     { label: 'timeout',     color: '#737373', dim: 'rgba(115,115,115,0.15)' },
-  dns:         { label: 'dns failed',  color: '#a3a3a3', dim: 'rgba(163,163,163,0.15)' },
-  connection:  { label: 'connection',  color: '#525252', dim: 'rgba(82,82,82,0.15)' },
-  ssl:         { label: 'ssl / tls',   color: '#ef4444', dim: 'rgba(239,68,68,0.15)' },
-  other:       { label: 'other',       color: '#404040', dim: 'rgba(64,64,64,0.15)' },
+  online:      { label: 'Online',      color: '#4ade80', dim: 'rgba(74,222,128,0.15)' },
+  http_error:  { label: 'HTTP Error',  color: '#9ca3af', dim: 'rgba(156,163,175,0.15)' },
+  timeout:     { label: 'Timeout',     color: '#737373', dim: 'rgba(115,115,115,0.15)' },
+  dns:         { label: 'DNS Failed',  color: '#a3a3a3', dim: 'rgba(163,163,163,0.15)' },
+  connection:  { label: 'Connection',  color: '#525252', dim: 'rgba(82,82,82,0.15)' },
+  ssl:         { label: 'SSL / TLS',   color: '#ef4444', dim: 'rgba(239,68,68,0.15)' },
+  other:       { label: 'Other',       color: '#404040', dim: 'rgba(64,64,64,0.15)' },
 };
 
 // ---------- Input parsing ----------
@@ -232,11 +254,11 @@ function renderSparkline() {
 
 // ---------- Helpers ----------
 function statusBadge(r) {
-  if (r.ok) return `<span class="badge badge-online">online</span>`;
-  if (r.category === 'ssl') return `<span class="badge badge-error">ssl</span>`;
+  if (r.ok) return `<span class="badge badge-online">${CATEGORIES.online.label}</span>`;
+  if (r.category === 'ssl') return `<span class="badge badge-error">${CATEGORIES.ssl.label}</span>`;
   return `<span class="badge badge-offline">${prettyCategory(r.category)}</span>`;
 }
-function prettyCategory(c) { return CATEGORIES[c]?.label || 'offline'; }
+function prettyCategory(c) { return CATEGORIES[c]?.label || 'Offline'; }
 
 function fmtMs(ms) {
   if (ms == null) return '<span style="color:var(--text-muted)">-</span>';
@@ -250,10 +272,361 @@ function escapeHtml(s) {
   ));
 }
 
+function describeOutcome(result) {
+  if (result.ok) return CATEGORIES.online.label;
+  return prettyCategory(result.category);
+}
+
+function describeRequestPath(result) {
+  const attempts = result.attempted_protocols || [];
+  if (attempts.length > 1) return attempts.join(' -> ');
+  if (attempts.length === 1) return attempts[0];
+  if (result.category === 'dns') return 'dns only';
+  return result.protocol || '-';
+}
+
+function describeResultSummary(result) {
+  if (result.ok) {
+    const proto = result.protocol ? result.protocol.toUpperCase() : 'HTTP';
+    const status = result.status_code != null ? `status ${result.status_code}` : 'a valid response';
+    const speed = result.elapsed_ms != null ? ` in ${fmtMs(result.elapsed_ms)}` : '';
+    return `${proto} returned ${status}${speed}.`;
+  }
+  if (result.category === 'dns') {
+    return `${result.detail || 'DNS resolution failed'} before an HTTP request could begin.`;
+  }
+  if (result.category === 'ssl') {
+    return `The hostname resolved, but TLS failed before the site could be considered browser-safe.`;
+  }
+  if (result.category === 'http_error') {
+    const proto = result.protocol ? result.protocol.toUpperCase() : 'HTTP';
+    return `${proto} reached the server, but it answered with ${result.detail || 'an error status'}.`;
+  }
+  if (result.category === 'timeout') {
+    return `The hostname resolved, but no usable response arrived before the timeout window closed.`;
+  }
+  if (result.category === 'connection') {
+    return `The hostname resolved, but the connection could not be established cleanly.`;
+  }
+  return result.detail || 'The check failed without a usable HTTP response.';
+}
+
+function dnsModeLabel(mode) {
+  return mode === 'direct' ? 'Public Direct' : 'System';
+}
+
+function getRunMeta() {
+  return {
+    total: currentRunMeta.total || currentRunTotal || currentResults.length,
+    timeout: currentRunMeta.timeout ?? (Number(timeoutInput.value) || 5),
+    workers: currentRunMeta.workers ?? (Number(workersInput.value) || 100),
+    dnsMode: currentRunMeta.dnsMode || dnsModeInput.value || 'system',
+    startedAt: currentRunMeta.startedAt || null,
+  };
+}
+
+function detailExportPayload(result) {
+  const runMeta = getRunMeta();
+  const diagnostics = detailDiagnosticsCache.get(result.domain) || null;
+  const overview = {
+    outcome: describeOutcome(result),
+    request_path: describeRequestPath(result),
+    dns_mode: dnsModeLabel(runMeta.dnsMode),
+    timeout_seconds: runMeta.timeout,
+    concurrency: runMeta.workers,
+    batch_total: runMeta.total,
+  };
+  return {
+    summary: describeResultSummary(result),
+    overview,
+    result: {
+      domain: result.domain,
+      ok: result.ok,
+      detail: result.detail,
+      category: result.category,
+      status_code: result.status_code ?? null,
+      elapsed_ms: result.elapsed_ms ?? null,
+      protocol: result.protocol ?? null,
+      dns_addresses: result.dns_addresses ?? [],
+      attempted_protocols: result.attempted_protocols ?? [],
+      request_method: result.request_method ?? null,
+      http_version: result.http_version ?? null,
+      redirect_location: result.redirect_location ?? null,
+      server: result.server ?? null,
+      content_type: result.content_type ?? null,
+    },
+    diagnostics: diagnostics ? {
+      final_url: diagnostics.final_url ?? null,
+      final_status_code: diagnostics.final_status_code ?? null,
+      redirect_count: diagnostics.redirect_count ?? null,
+      chain: diagnostics.chain ?? [],
+    } : null,
+    run: {
+      started_at: runMeta.startedAt ? new Date(runMeta.startedAt).toISOString() : null,
+      total_domains: runMeta.total,
+      timeout_seconds: runMeta.timeout,
+      workers: runMeta.workers,
+      dns_mode: runMeta.dnsMode,
+    },
+  };
+}
+
+function detailExportText(result) {
+  const payload = detailExportPayload(result);
+  const lines = [
+    'Bulk Domain Checker Detailed Result',
+    '',
+    `Domain: ${result.domain}`,
+    `Outcome: ${payload.overview.outcome}`,
+    `Detail: ${result.detail || '-'}`,
+    `Request Path: ${payload.overview.request_path}`,
+    `DNS Mode: ${payload.overview.dns_mode}`,
+    `Protocol: ${result.protocol || '-'}`,
+    `Method: ${result.request_method || '-'}`,
+    `Status Code: ${result.status_code ?? '-'}`,
+    `Elapsed: ${result.elapsed_ms != null ? `${result.elapsed_ms} ms` : '-'}`,
+    `HTTP Version: ${result.http_version || '-'}`,
+    `Server: ${result.server || '-'}`,
+    `Content-Type: ${result.content_type || '-'}`,
+    `Redirect Location: ${result.redirect_location || '-'}`,
+    `Resolved Addresses: ${(result.dns_addresses || []).join(', ') || '-'}`,
+    `Attempted Protocols: ${(result.attempted_protocols || []).join(' -> ') || '-'}`,
+  ];
+  if (payload.diagnostics?.final_url) lines.push(`Final URL: ${payload.diagnostics.final_url}`);
+  if (payload.diagnostics?.final_status_code != null) lines.push(`Final Status Code: ${payload.diagnostics.final_status_code}`);
+  if (payload.diagnostics?.redirect_count != null) lines.push(`Redirect Count: ${payload.diagnostics.redirect_count}`);
+  if (payload.diagnostics?.chain?.length) {
+    lines.push('');
+    lines.push('Redirect Chain:');
+    for (const hop of payload.diagnostics.chain) {
+      lines.push(
+        `${hop.step}. ${hop.method || 'HEAD'} ${hop.url} -> ${hop.status_code}${hop.next_url ? ` -> ${hop.next_url}` : ''}`
+      );
+    }
+  }
+  lines.push('');
+  lines.push(`Run Settings: timeout=${payload.run.timeout_seconds}s | workers=${payload.run.workers} | dns=${payload.run.dns_mode}`);
+  if (payload.run.started_at) lines.push(`Run Started At: ${payload.run.started_at}`);
+  return lines.join('\n') + '\n';
+}
+
+function renderDetailChips(target, values) {
+  if (!values?.length) {
+    target.innerHTML = '<div class="detail-empty">No address data captured for this result.</div>';
+    return;
+  }
+  target.innerHTML = `<div class="detail-chip-row">${values.map(value => `
+    <span class="detail-chip">${escapeHtml(value)}</span>
+  `).join('')}</div>`;
+}
+
+function renderRedirectChain(data) {
+  if (!data) {
+    detailRedirectChain.innerHTML = '<div class="detail-empty">Redirect diagnostics are unavailable for this result.</div>';
+    return;
+  }
+  if (!data.chain?.length) {
+    const reason = data.error
+      ? escapeHtml(data.error)
+      : 'No HTTP response was captured, so there is no redirect chain to inspect.';
+    detailRedirectChain.innerHTML = `<div class="detail-empty">${reason}</div>`;
+    return;
+  }
+
+  const summaryBits = [];
+  if (data.redirect_count != null) summaryBits.push(`${data.redirect_count} Redirect${data.redirect_count === 1 ? '' : 's'}`);
+  if (data.final_url) summaryBits.push(`Final URL: ${data.final_url}`);
+
+  detailRedirectChain.innerHTML = `
+    ${summaryBits.length ? `<div class="detail-empty" style="margin-bottom:.75rem">${escapeHtml(summaryBits.join(' · '))}</div>` : ''}
+    <div class="redirect-chain-list">
+      ${data.chain.map(hop => `
+        <div class="redirect-hop">
+          <div class="redirect-hop-step">${hop.step}</div>
+          <div class="redirect-hop-main">
+            <div class="redirect-hop-url">${escapeHtml(`${hop.method || 'HEAD'} ${hop.url}`)}</div>
+            <div class="redirect-hop-next">${hop.next_url ? `Next: ${escapeHtml(hop.next_url)}` : 'Final response'}</div>
+          </div>
+          <div class="redirect-hop-status">${escapeHtml(String(hop.status_code))}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderDetailMeta(result, diagnostics = null) {
+  const meta = [
+    ['Request Method', result.request_method],
+    ['HTTP Version', result.http_version],
+    ['Redirect Location', result.redirect_location],
+    ['Server Header', result.server],
+    ['Content-Type', result.content_type],
+    ['Attempted Protocols', (result.attempted_protocols || []).join(' -> ') || null],
+    ['Final URL', diagnostics?.final_url || null],
+    ['Redirect Count', diagnostics?.redirect_count != null ? String(diagnostics.redirect_count) : null],
+  ].filter(([, value]) => value);
+
+  if (!meta.length) {
+    detailResponseMeta.innerHTML = '<div class="detail-empty">No extra response metadata was available for this result.</div>';
+    return;
+  }
+
+  detailResponseMeta.innerHTML = meta.map(([label, value]) => `
+    <div class="detail-meta-item">
+      <div class="detail-meta-label">${escapeHtml(label)}</div>
+      <div class="detail-meta-value">${escapeHtml(value)}</div>
+    </div>
+  `).join('');
+}
+
 function countsByCategory() {
   const out = {};
   for (const r of currentResults) out[r.category] = (out[r.category] || 0) + 1;
   return out;
+}
+
+function buildResultRow(result, extraClass = '') {
+  return `
+    <tr class="${extraClass}" data-domain="${escapeHtml(result.domain)}" tabindex="0" aria-label="View details for ${escapeHtml(result.domain)}">
+      <td>${escapeHtml(result.domain)}</td>
+      <td>${statusBadge(result)}</td>
+      <td>${escapeHtml(result.detail || '')}</td>
+      <td>${fmtMs(result.elapsed_ms)}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm row-copy-btn" type="button" data-action="copy" data-domain="${escapeHtml(result.domain)}">Copy</button>
+      </td>
+    </tr>
+  `;
+}
+
+function createResultRowElement(result, extraClass = '') {
+  const tr = document.createElement('tr');
+  if (extraClass) tr.className = extraClass;
+  tr.dataset.domain = result.domain;
+  tr.tabIndex = 0;
+  tr.setAttribute('aria-label', `View details for ${result.domain}`);
+  tr.innerHTML = `
+    <td>${escapeHtml(result.domain)}</td>
+    <td>${statusBadge(result)}</td>
+    <td>${escapeHtml(result.detail || '')}</td>
+    <td>${fmtMs(result.elapsed_ms)}</td>
+    <td>
+      <button class="btn btn-ghost btn-sm row-copy-btn" type="button" data-action="copy" data-domain="${escapeHtml(result.domain)}">Copy</button>
+    </td>
+  `;
+  return tr;
+}
+
+function getResultByDomain(domain) {
+  return currentResults.find(r => r.domain === domain) || null;
+}
+
+function closeDetailModal() {
+  if (detailAbortController) {
+    detailAbortController.abort();
+    detailAbortController = null;
+  }
+  if (resultDetailModal.classList.contains('hidden')) return;
+  resultDetailModal.classList.add('hidden');
+  resultDetailModal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('modal-open');
+  selectedDetailDomain = null;
+  if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === 'function') {
+    lastFocusedBeforeModal.focus();
+  }
+  lastFocusedBeforeModal = null;
+}
+
+async function loadDetailDiagnostics(result) {
+  const cached = detailDiagnosticsCache.get(result.domain);
+  if (cached) {
+    renderRedirectChain(cached);
+    renderDetailMeta(result, cached);
+    return;
+  }
+
+  if (!(result.protocol || result.status_code != null)) {
+    renderRedirectChain({
+      error: 'No successful HTTP response was captured for this result, so there is no redirect chain to inspect.',
+      chain: [],
+    });
+    renderDetailMeta(result);
+    return;
+  }
+
+  if (detailAbortController) detailAbortController.abort();
+  detailAbortController = new AbortController();
+  const controller = detailAbortController;
+  renderRedirectChain({ error: 'Loading redirect chain…', chain: [] });
+
+  try {
+    const runMeta = getRunMeta();
+    const response = await fetch('/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain: result.domain,
+        timeout: runMeta.timeout,
+        dns_mode: runMeta.dnsMode,
+        protocol: result.protocol || undefined,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const errTxt = await response.text().catch(() => '');
+      throw new Error(`Inspect failed: ${response.status} ${errTxt.slice(0, 120)}`.trim());
+    }
+    const diagnostics = await response.json();
+    if (controller !== detailAbortController || selectedDetailDomain !== result.domain) return;
+    detailDiagnosticsCache.set(result.domain, diagnostics);
+    renderRedirectChain(diagnostics);
+    renderDetailMeta(result, diagnostics);
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    if (controller !== detailAbortController || selectedDetailDomain !== result.domain) return;
+    renderRedirectChain({
+      error: err.message || 'Redirect diagnostics could not be loaded.',
+      chain: [],
+    });
+    renderDetailMeta(result);
+  } finally {
+    if (controller === detailAbortController) detailAbortController = null;
+  }
+}
+
+function openDetailModal(result, triggerEl = null) {
+  if (!result) return;
+  lastFocusedBeforeModal = triggerEl || document.activeElement;
+  selectedDetailDomain = result.domain;
+  const runMeta = getRunMeta();
+  const overviewCards = [
+    ['Outcome', describeOutcome(result)],
+    ['Detail', result.detail || '-'],
+    ['Request Path', describeRequestPath(result)],
+    ['Response Time', result.elapsed_ms != null ? `${result.elapsed_ms} ms` : '-'],
+    ['HTTP Status', result.status_code != null ? String(result.status_code) : '-'],
+    ['Protocol', result.protocol || '-'],
+    ['DNS Mode', dnsModeLabel(runMeta.dnsMode)],
+    ['Run Settings', `${runMeta.timeout}s timeout · ${runMeta.workers} workers`],
+  ];
+
+  resultDetailTitle.textContent = result.domain;
+  resultDetailSummary.textContent = describeResultSummary(result);
+  detailOverviewGrid.innerHTML = overviewCards.map(([label, value]) => `
+    <div class="detail-card">
+      <div class="detail-card-label">${escapeHtml(label)}</div>
+      <div class="detail-card-value${value === '-' ? ' muted' : ''}">${escapeHtml(value)}</div>
+    </div>
+  `).join('');
+  renderDetailChips(detailDnsAddresses, result.dns_addresses || []);
+  renderDetailMeta(result);
+  renderRedirectChain({ error: 'Loading redirect chain…', chain: [] });
+
+  resultDetailModal.classList.remove('hidden');
+  resultDetailModal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+  detailCopyBtn.focus();
+  loadDetailDiagnostics(result);
 }
 
 function getVisibleResults() {
@@ -301,45 +674,34 @@ function renderTable() {
     const frag = document.createDocumentFragment();
     for (let i = lastRenderCount; i < visible.length; i++) {
       const r = visible[i];
-      const tr = document.createElement('tr');
-      tr.className = 'appear';
-      tr.innerHTML = `
-        <td>${escapeHtml(r.domain)}</td>
-        <td>${statusBadge(r)}</td>
-        <td>${escapeHtml(r.detail || '')}</td>
-        <td>${fmtMs(r.elapsed_ms)}</td>
-      `;
-      frag.appendChild(tr);
+      frag.appendChild(createResultRowElement(r, 'appear'));
     }
     resultsTbody.appendChild(frag);
     lastRenderCount = visible.length;
   } else {
-    resultsTbody.innerHTML = visible.map(r => `
-      <tr>
-        <td>${escapeHtml(r.domain)}</td>
-        <td>${statusBadge(r)}</td>
-        <td>${escapeHtml(r.detail || '')}</td>
-        <td>${fmtMs(r.elapsed_ms)}</td>
-      </tr>
-    `).join('');
+    resultsTbody.innerHTML = visible.map(r => buildResultRow(r)).join('');
     lastRenderCount = visible.length;
   }
 
-  const totalText = currentResults.length === 1 ? '1 result' : `${currentResults.length.toLocaleString()} results`;
-  if (rows.length === currentResults.length) {
-    resultsCount.textContent = totalText;
-  } else {
-    resultsCount.textContent = `${rows.length.toLocaleString()} of ${currentResults.length.toLocaleString()}`;
-  }
-  if (rows.length > MAX) {
-    resultsCount.textContent += ` (showing ${MAX.toLocaleString()})`;
-  }
+  updateResultsCount(rows, MAX);
 
   document.querySelectorAll('th[data-sort]').forEach(th => {
     th.classList.toggle('active', th.dataset.sort === sortKey);
     const arrow = th.querySelector('.sort-arrow');
     if (arrow) arrow.textContent = th.dataset.sort === sortKey ? (sortDir > 0 ? '↑' : '↓') : '↕';
   });
+}
+
+function updateResultsCount(rows, MAX) {
+  const totalText = currentResults.length === 1 ? '1 Result' : `${currentResults.length.toLocaleString()} Results`;
+  if (rows.length === currentResults.length) {
+    resultsCount.textContent = totalText;
+  } else {
+    resultsCount.textContent = `${rows.length.toLocaleString()} of ${currentResults.length.toLocaleString()}`;
+  }
+  if (rows.length > MAX) {
+    resultsCount.textContent += ` (Showing ${MAX.toLocaleString()})`;
+  }
 }
 
 // Sort + search wires
@@ -428,7 +790,7 @@ function updateStats(total) {
   if (recentSpeed > 0 && remaining > 0) {
     $('stat-eta-value').textContent = formatDuration(remaining / recentSpeed);
   } else if (remaining === 0 && total > 0) {
-    $('stat-eta-value').textContent = 'done';
+    $('stat-eta-value').textContent = 'Done';
   } else {
     $('stat-eta-value').textContent = '-';
   }
@@ -454,10 +816,12 @@ async function startRun() {
   updateInputMeta();
   const domains = parsedDomains;
   if (!domains.length) return;
+  closeDetailModal();
 
   // Reset
   currentResults = [];
   speedSamples.length = 0;
+  detailDiagnosticsCache.clear();
   categoryFilter = null;
   searchQuery = '';
   sortKey = null;
@@ -473,6 +837,13 @@ async function startRun() {
   progressBarWrap.classList.add('shimmer');
   progressBarWrap.innerHTML = '';
   currentRunTotal = domains.length;
+  currentRunMeta = {
+    total: domains.length,
+    timeout: parseFloat(timeoutInput.value) || 5,
+    workers: parseInt(workersInput.value) || 100,
+    dnsMode: dnsModeInput.value || 'system',
+    startedAt: Date.now(),
+  };
   downloadButtonsContainer.classList.add('hidden');
   failureReasonsPanel.classList.add('hidden');
   updateFilterPills();
@@ -483,7 +854,7 @@ async function startRun() {
 
   terminal.classList.add('active');
   logsContainer.innerHTML = '';
-  logStatus.textContent = 'streaming…';
+  logStatus.textContent = 'Streaming…';
 
   const banner = [
     '  ___                 _         ___ _           _           ',
@@ -578,9 +949,9 @@ async function startRun() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         domains,
-        timeout: parseFloat(timeoutInput.value) || 5,
-        workers: parseInt(workersInput.value) || 100,
-        dns_mode: dnsModeInput.value || 'system',
+        timeout: currentRunMeta.timeout,
+        workers: currentRunMeta.workers,
+        dns_mode: currentRunMeta.dnsMode,
       }),
       signal: abortController.signal,
     });
@@ -621,17 +992,17 @@ async function startRun() {
     if (pending.length) flush();
     if (streamError) {
       runOutcome = 'error';
-      logStatus.textContent = 'error';
+      logStatus.textContent = 'Error';
       if (currentResults.length > 0) downloadButtonsContainer.classList.remove('hidden');
     } else {
       runOutcome = 'completed';
       const finalLine = document.createElement('div');
-      finalLine.textContent = `▸ done. ${currentResults.length}/${domains.length} checked in ${$('stat-elapsed-value').textContent}.`;
+      finalLine.textContent = `▸ Done. ${currentResults.length}/${domains.length} checked in ${$('stat-elapsed-value').textContent}.`;
       finalLine.style.color = 'var(--accent)';
       finalLine.style.marginTop = '0.4rem';
       logsContainer.appendChild(finalLine);
       logsContainer.scrollTop = logsContainer.scrollHeight;
-      logStatus.textContent = `${currentResults.length} done`;
+      logStatus.textContent = `${currentResults.length} Complete`;
       if (currentResults.length > 0) downloadButtonsContainer.classList.remove('hidden');
     }
   } catch (err) {
@@ -641,7 +1012,7 @@ async function startRun() {
       div.style.color = 'var(--text-dim)';
       div.textContent = `▸ cancelled at ${currentResults.length}/${domains.length}.`;
       logsContainer.appendChild(div);
-      logStatus.textContent = 'cancelled';
+      logStatus.textContent = 'Cancelled';
       if (currentResults.length > 0) downloadButtonsContainer.classList.remove('hidden');
     } else {
       runOutcome = 'error';
@@ -649,7 +1020,7 @@ async function startRun() {
       div.style.color = 'var(--error)';
       div.textContent = `[error] ${err.message}`;
       logsContainer.appendChild(div);
-      logStatus.textContent = 'error';
+      logStatus.textContent = 'Error';
       if (currentResults.length > 0) downloadButtonsContainer.classList.remove('hidden');
     }
   } finally {
@@ -684,7 +1055,10 @@ checkBtn.addEventListener('click', startRun);
 cancelBtn.addEventListener('click', () => abortController?.abort());
 
 document.addEventListener('keydown', (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+  if (e.key === 'Escape' && !resultDetailModal.classList.contains('hidden')) {
+    e.preventDefault();
+    closeDetailModal();
+  } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
     e.preventDefault();
     if (!isRunning) startRun();
   } else if (e.key === 'Escape' && isRunning) {
@@ -704,6 +1078,18 @@ function downloadFile(filename, content, mimeType) {
   URL.revokeObjectURL(url);
 }
 
+function simpleExportResults() {
+  return currentResults.map(r => ({
+    domain: r.domain,
+    ok: r.ok,
+    detail: r.detail,
+    category: r.category,
+    status_code: r.status_code ?? null,
+    elapsed_ms: r.elapsed_ms ?? null,
+    protocol: r.protocol ?? null,
+  }));
+}
+
 downloadCsvBtn.addEventListener('click', () => {
   if (!currentResults.length) return;
   const rows = ['Domain,Status,Category,Detail,Status Code,Elapsed (ms),Protocol'];
@@ -716,7 +1102,7 @@ downloadCsvBtn.addEventListener('click', () => {
 });
 downloadJsonBtn.addEventListener('click', () => {
   if (!currentResults.length) return;
-  downloadFile('domain_results.json', JSON.stringify(currentResults, null, 2), 'application/json;charset=utf-8;');
+  downloadFile('domain_results.json', JSON.stringify(simpleExportResults(), null, 2), 'application/json;charset=utf-8;');
 });
 downloadTxtBtn.addEventListener('click', () => {
   if (!currentResults.length) return;
@@ -738,7 +1124,7 @@ function showToast(message, accent = false) {
   setTimeout(() => t.remove(), 2200);
 }
 
-// ---------- Click-to-copy on result rows ----------
+// ---------- Result row actions ----------
 async function copyText(text) {
   // Modern API first; fall back to a hidden textarea + execCommand for
   // browsers / privacy modes where the async clipboard API is blocked
@@ -775,14 +1161,63 @@ async function copyText(text) {
 resultsTbody.addEventListener('click', async (e) => {
   const tr = e.target.closest('tr');
   if (!tr) return;
-  const domain = tr.querySelector('td:first-child')?.textContent?.trim();
+  const copyBtn = e.target.closest('[data-action="copy"]');
+  const domain = copyBtn?.dataset.domain || tr.dataset.domain;
   if (!domain) return;
-  const ok = await copyText(domain);
-  showToast(ok ? `copied · ${domain}` : 'copy failed', ok);
-  tr.classList.remove('flash');
-  void tr.offsetWidth;
-  tr.classList.add('flash');
-  setTimeout(() => tr.classList.remove('flash'), 500);
+  if (copyBtn) {
+    const ok = await copyText(domain);
+    showToast(ok ? `copied · ${domain}` : 'copy failed', ok);
+    tr.classList.remove('flash');
+    void tr.offsetWidth;
+    tr.classList.add('flash');
+    setTimeout(() => tr.classList.remove('flash'), 500);
+    return;
+  }
+  openDetailModal(getResultByDomain(domain), tr);
+});
+
+resultsTbody.addEventListener('keydown', (e) => {
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  if (e.target.closest('button')) return;
+  e.preventDefault();
+  const domain = tr.dataset.domain;
+  if (!domain) return;
+  openDetailModal(getResultByDomain(domain), tr);
+});
+
+resultDetailModal.addEventListener('click', (e) => {
+  if (e.target === resultDetailModal) closeDetailModal();
+});
+detailCloseBtn.addEventListener('click', closeDetailModal);
+
+detailCopyBtn.addEventListener('click', async () => {
+  if (!selectedDetailDomain) return;
+  const ok = await copyText(selectedDetailDomain);
+  showToast(ok ? `copied · ${selectedDetailDomain}` : 'copy failed', ok);
+});
+
+detailExportJsonBtn.addEventListener('click', () => {
+  if (!selectedDetailDomain) return;
+  const result = getResultByDomain(selectedDetailDomain);
+  if (!result) return;
+  downloadFile(
+    `${result.domain.replace(/[^a-z0-9.-]+/gi, '_')}_detail.json`,
+    JSON.stringify(detailExportPayload(result), null, 2),
+    'application/json;charset=utf-8;',
+  );
+});
+
+detailExportTxtBtn.addEventListener('click', () => {
+  if (!selectedDetailDomain) return;
+  const result = getResultByDomain(selectedDetailDomain);
+  if (!result) return;
+  downloadFile(
+    `${result.domain.replace(/[^a-z0-9.-]+/gi, '_')}_detail.txt`,
+    detailExportText(result),
+    'text/plain;charset=utf-8;',
+  );
 });
 
 // ---------- Re-check ----------
@@ -861,6 +1296,7 @@ function saveLastRun(total) {
     const payload = {
       status: 'completed',
       total,
+      meta: getRunMeta(),
       results: currentResults,
       completedAt: Date.now(),
       elapsedSec: (performance.now() - runStartTime) / 1000,
@@ -889,6 +1325,14 @@ function restoreLastRun() {
 
   currentResults = payload.results;
   currentRunTotal = total;
+  detailDiagnosticsCache.clear();
+  currentRunMeta = {
+    total,
+    timeout: payload.meta?.timeout ?? (Number(timeoutInput.value) || 5),
+    workers: payload.meta?.workers ?? (Number(workersInput.value) || 100),
+    dnsMode: payload.meta?.dnsMode || payload.meta?.dns_mode || dnsModeInput.value || 'system',
+    startedAt: payload.meta?.startedAt || payload.meta?.started_at || payload.completedAt || null,
+  };
   const online = currentResults.filter(r => r.ok).length;
   const failed = currentResults.length - online;
 
@@ -908,7 +1352,7 @@ function restoreLastRun() {
   $('stat-failed-percent').textContent = currentResults.length > 0 ? `${Math.round((failed / currentResults.length) * 100)}%` : '0%';
   if (payload.elapsedSec != null) $('stat-elapsed-value').textContent = `${payload.elapsedSec.toFixed(1)}s`;
   if (payload.elapsedSec > 0) $('stat-speed-value').textContent = (currentResults.length / payload.elapsedSec).toFixed(1);
-  $('stat-eta-value').textContent = 'done';
+  $('stat-eta-value').textContent = 'Done';
 
   renderProgressBar(total);
   renderFailureReasons();
@@ -919,8 +1363,8 @@ function restoreLastRun() {
 
   // A subtle hint that this is restored, not freshly run.
   const ageMin = Math.round((Date.now() - (payload.completedAt || Date.now())) / 60000);
-  const ageLabel = ageMin <= 0 ? 'just now' : ageMin < 60 ? `${ageMin}m ago` : `${Math.round(ageMin / 60)}h ago`;
-  resultsCount.textContent = `${currentResults.length.toLocaleString()} results · ${ageLabel}`;
+  const ageLabel = ageMin <= 0 ? 'Just Now' : ageMin < 60 ? `${ageMin}m Ago` : `${Math.round(ageMin / 60)}h Ago`;
+  resultsCount.textContent = `${currentResults.length.toLocaleString()} Results · ${ageLabel}`;
 }
 restoreLastRun();
 

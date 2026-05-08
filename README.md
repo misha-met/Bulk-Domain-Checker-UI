@@ -27,7 +27,7 @@ Bulk Domain Checker focuses on practical batch verification, not just a pretty t
 - `system` DNS and public-resolver `direct` DNS for local-vs-public diagnostics
 - Failure grouping for DNS, timeout, connection, SSL/TLS, HTTP, and other errors
 - Proxy-aware and CA-aware HTTP checks that respect `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `SSL_CERT_FILE`, and `SSL_CERT_DIR`
-- Search, sort, copy, and failure-only re-check workflows
+- Search, sort, detailed result panels with redirect-chain diagnostics, copy, and failure-only re-check workflows
 - CSV, JSON, and TXT exports
 - Saved browser input, settings, and recent results in `localStorage`
 - Simple NDJSON API for scripting and internal tools
@@ -59,7 +59,7 @@ This makes it easier to tell whether a failure starts in local DNS handling or a
 
 - Re-run only failed domains after a batch completes
 - Export the active result set as CSV, JSON, or TXT
-- Click any result row to copy the hostname
+- Click any result row for a detail panel with richer diagnostics, redirect-chain lookup, and per-domain exports
 
 ### CLI and Automation
 
@@ -90,6 +90,13 @@ This produces a result object with:
 - `status_code`
 - `elapsed_ms`
 - `protocol`
+- `dns_addresses` when resolution succeeded
+- `attempted_protocols`
+- `request_method`
+- `http_version`
+- `redirect_location`
+- `server`
+- `content_type`
 
 ## Prerequisites
 
@@ -247,6 +254,13 @@ Example streamed line:
 | `status_code` | `number \| null` | HTTP status code when available |
 | `elapsed_ms` | `number \| null` | Request timing in milliseconds when available |
 | `protocol` | `string \| null` | `https` or `http` when available |
+| `dns_addresses` | `string[] \| null` | Resolved IPs captured during the DNS preflight when available |
+| `attempted_protocols` | `string[] \| null` | Protocols attempted during the check, such as `["https"]` or `["https","http"]` |
+| `request_method` | `string \| null` | Final request method used for the returned HTTP response, such as `HEAD` or `GET` |
+| `http_version` | `string \| null` | HTTP version reported by the server when available |
+| `redirect_location` | `string \| null` | Redirect target from the `Location` header when the response included one |
+| `server` | `string \| null` | `Server` header value when available |
+| `content_type` | `string \| null` | `Content-Type` header value when available |
 
 ## Troubleshooting
 

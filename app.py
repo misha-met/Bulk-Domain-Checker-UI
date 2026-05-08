@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from check_domains import run_stream
+from check_domains import inspect_redirect_chain, run_stream
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("bulk-domain-checker")
@@ -31,6 +31,13 @@ class CheckRequest(BaseModel):
     timeout: float = Field(default=5.0, ge=0.5, le=60.0)
     workers: int = Field(default=100, ge=1, le=1000)
     dns_mode: Literal["system", "direct"] = "system"
+
+
+class InspectRequest(BaseModel):
+    domain: str = Field(min_length=1)
+    timeout: float = Field(default=5.0, ge=0.5, le=60.0)
+    dns_mode: Literal["system", "direct"] = "system"
+    protocol: Literal["http", "https"] | None = None
 
 
 @app.get("/")
@@ -70,6 +77,16 @@ async def check_endpoint(req: CheckRequest, request: Request) -> StreamingRespon
             yield (json.dumps({"error": "Streaming failed", "detail": str(e)}) + "\n").encode("utf-8")
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@app.post("/inspect")
+async def inspect_endpoint(req: InspectRequest) -> dict:
+    return await inspect_redirect_chain(
+        req.domain.strip(),
+        req.timeout,
+        dns_mode=req.dns_mode,
+        protocol_hint=req.protocol,
+    )
 
 
 if __name__ == "__main__":
