@@ -202,7 +202,7 @@ Typical use cases:
 - narrowing down whether the difference starts at DNS resolution or later in the network path
 - checking hosts that may resolve on `A` or `AAAA`
 
-Bulk Domain Checker queries Cloudflare `1.1.1.1`, Google `8.8.8.8`, and Quad9 `9.9.9.9` directly in this mode.
+Bulk Domain Checker queries Cloudflare `1.1.1.1`, Google `8.8.8.8`, and Quad9 `9.9.9.9` directly in this mode. The main check then dials the returned IP while preserving the original hostname for `Host` and TLS SNI, so local hosts-file overrides do not leak back into the primary HTTP result. Proxy, CA, and outbound network settings still come from the machine running the check.
 
 ## HTTP API
 

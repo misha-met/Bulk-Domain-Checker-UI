@@ -1040,7 +1040,7 @@
                   </select>
                   <p class="settings-help">
                     <strong>System</strong> uses your machine's resolver. It honours firewalls, /etc/hosts, VPN, and corporate DNS to represent what you'd actually see when visiting the site.<br>
-                    <strong>Public</strong> queries Cloudflare (1.1.1.1), Google (8.8.8.8) and Quad9 (9.9.9.9) directly via UDP. It bypasses /etc/hosts and local DNS overrides to tell you if the domain exists on the public internet regardless of your network. This is useful for diagnosing what your firewall or DNS policy is blocking.
+                    <strong>Public</strong> queries Cloudflare (1.1.1.1), Google (8.8.8.8) and Quad9 (9.9.9.9) directly via UDP, then dials the returned IP while keeping the original hostname for Host and TLS. It bypasses /etc/hosts and local DNS overrides for the main check, while still using this machine's outbound network and proxy path. This is useful for diagnosing what your firewall or DNS policy is blocking.
                   </p>
                 </div>
               </div>

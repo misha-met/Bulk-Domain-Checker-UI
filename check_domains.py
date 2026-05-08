@@ -265,21 +265,82 @@ def _truncate(s: str, n: int = 80) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def _url_host(host: str) -> str:
+    return f"[{host}]" if ":" in host and not host.startswith("[") else host
+
+
+def _direct_request_url(url: str, address: str) -> str:
+    parts = urllib.parse.urlsplit(url)
+    netloc = _url_host(address)
+    if parts.port is not None:
+        netloc = f"{netloc}:{parts.port}"
+    path = parts.path or "/"
+    return urllib.parse.urlunsplit((parts.scheme, netloc, path, parts.query, parts.fragment))
+
+
+def _direct_request_options(
+    request_host: str | None,
+    address: str | None,
+    request_url: str,
+) -> tuple[dict[str, str] | None, dict[str, str] | None]:
+    if not request_host or not address:
+        return None, None
+
+    headers = {
+        # Route to the resolved IP, but keep the original hostname for
+        # virtual-host routing on the server side.
+        "Host": request_host,
+        # Direct-mode requests rewrite the URL host to an IP. We keep these
+        # one-shot in HTTP/1.1 so different hostnames sharing an IP can't
+        # accidentally reuse the same connection.
+        "Connection": "close",
+    }
+    scheme = urllib.parse.urlsplit(request_url).scheme
+    extensions = {"sni_hostname": request_host} if scheme == "https" else None
+    return headers, extensions
+
+
 async def _try_one(
-    client: AsyncClient, url: str, *, allow_get_fallback: bool = True
+    client: AsyncClient,
+    url: str,
+    *,
+    allow_get_fallback: bool = True,
+    request_host: str | None = None,
+    resolved_addresses: list[str] | None = None,
 ) -> tuple[httpx.Response | None, BaseException | None, str]:
     """Issue HEAD; on 405, retry the same URL with GET. Returns (response, error)."""
-    method = "HEAD"
-    try:
-        resp = await client.request("HEAD", url, follow_redirects=False)
-        if resp.status_code == 405 and allow_get_fallback:
-            method = "GET"
-            resp = await client.get(url, follow_redirects=False)
-        return resp, None, method
-    except asyncio.CancelledError:
-        raise
-    except BaseException as e:  # noqa: BLE001 to surface every kind of failure
-        return None, e, method
+    targets = resolved_addresses or [None]
+    last_error: BaseException | None = None
+    last_method = "HEAD"
+
+    for address in targets:
+        method = "HEAD"
+        request_url = _direct_request_url(url, address) if address else url
+        headers, extensions = _direct_request_options(request_host, address, request_url)
+        try:
+            resp = await client.request(
+                "HEAD",
+                request_url,
+                follow_redirects=False,
+                headers=headers,
+                extensions=extensions,
+            )
+            if resp.status_code == 405 and allow_get_fallback:
+                method = "GET"
+                resp = await client.get(
+                    request_url,
+                    follow_redirects=False,
+                    headers=headers,
+                    extensions=extensions,
+                )
+            return resp, None, method
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:  # noqa: BLE001 to surface every kind of failure
+            last_error = e
+            last_method = method
+
+    return None, last_error, last_method
 
 
 async def _try_one_following_redirects(
@@ -346,7 +407,14 @@ async def check(domain: str, client: AsyncClient, resolver: Resolver) -> CheckRe
     #   4. If HTTPS fails with a connection-class error (refused, no route,
     #      timeout) → fall back to HTTP, since the site might be HTTP-only.
     attempted_protocols = ["https"]
-    https_resp, https_err, https_method = await _try_one(client, f"https://{host}")
+    direct_addresses = dns_addresses if resolver.mode == "direct" else None
+    request_host = host if resolver.mode == "direct" else None
+    https_resp, https_err, https_method = await _try_one(
+        client,
+        f"https://{host}",
+        request_host=request_host,
+        resolved_addresses=direct_addresses,
+    )
     if https_resp is not None and https_resp.status_code < 400:
         return _online(
             domain,
@@ -380,7 +448,12 @@ async def check(domain: str, client: AsyncClient, resolver: Resolver) -> CheckRe
         # Since there was a connection-class failure on HTTPS, try HTTP as a graceful fallback.
 
     attempted_protocols.append("http")
-    http_resp, http_err, http_method = await _try_one(client, f"http://{host}")
+    http_resp, http_err, http_method = await _try_one(
+        client,
+        f"http://{host}",
+        request_host=request_host,
+        resolved_addresses=direct_addresses,
+    )
     if http_resp is not None and http_resp.status_code < 400:
         return _online(
             domain,
@@ -522,7 +595,7 @@ async def inspect_redirect_chain(
             if proto not in protocols:
                 protocols.append(proto)
 
-        async with _make_client(timeout, 4) as client:
+        async with _make_client(timeout, 4, dns_mode=dns_mode) as client:
             attempted_protocols: list[str] = []
             last_error: BaseException | None = None
             last_method: str | None = None
@@ -592,7 +665,7 @@ async def inspect_redirect_chain(
         resolver.close()
 
 
-def _make_client(timeout: float, workers: int) -> AsyncClient:
+def _make_client(timeout: float, workers: int, dns_mode: DnsMode = "system") -> AsyncClient:
     """Configure the async HTTP client.
 
     SSL verification is **on** by default (verify=True). Expired, self-signed,
@@ -607,13 +680,14 @@ def _make_client(timeout: float, workers: int) -> AsyncClient:
     networks behind a TLS-terminating proxy.
     """
     timeout_cfg = Timeout(connect=min(timeout, 5.0), read=timeout, write=timeout, pool=None)
+    use_http2 = dns_mode != "direct"
     limits = Limits(
         max_connections=workers,
-        max_keepalive_connections=min(workers, 50),
+        max_keepalive_connections=0 if dns_mode == "direct" else min(workers, 50),
         keepalive_expiry=15.0,
     )
     return AsyncClient(
-        http2=True,
+        http2=use_http2,
         verify=True,
         trust_env=True,
         timeout=timeout_cfg,
@@ -632,7 +706,7 @@ async def run_stream(
     """Yield results as each check completes (used by the web API)."""
     resolver = Resolver(mode=dns_mode, concurrency=max(64, workers), timeout=3.0)
     try:
-        async with _make_client(timeout, workers) as client:
+        async with _make_client(timeout, workers, dns_mode=dns_mode) as client:
             sem = asyncio.Semaphore(workers)
 
             async def bound(d: str) -> CheckResult:
@@ -662,7 +736,7 @@ async def run(
     results: list[CheckResult] = []
     resolver = Resolver(mode=dns_mode, concurrency=max(64, workers), timeout=3.0)
     try:
-        async with _make_client(timeout, workers) as client:
+        async with _make_client(timeout, workers, dns_mode=dns_mode) as client:
             sem = asyncio.Semaphore(workers)
 
             async def bound(d: str) -> CheckResult:
