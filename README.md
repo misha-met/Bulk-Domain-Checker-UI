@@ -14,7 +14,8 @@
     <a href="#quick-start">Quick Start</a> •
     <a href="#cli-usage">CLI Usage</a> •
     <a href="#http-api">HTTP API</a> •
-    <a href="#project-layout">Project Layout</a>
+    <a href="#project-layout">Project Layout</a> •
+    <a href="https://deepwiki.com/misha-met/Bulk-Domain-Checker-UI">Wiki</a> 
   </p>
 </div>
 
