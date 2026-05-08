@@ -1,14 +1,21 @@
-# httpx: Modern async HTTP client used for checking domains. [http2] adds HTTP/2 support.
-httpx[http2]>=0.23.0
-# h2: Low-level HTTP/2 protocol library, often required by httpx[http2].
+# httpx: async HTTP client used for checking domains. [http2] adds HTTP/2 support.
+httpx[http2]>=0.27.0
+# h2: HTTP/2 protocol library used by httpx[http2].
 h2>=4.1.0
-# tqdm: Displays progress bars, used in the command-line script.
-tqdm>=4.60.0
-# Flask: Micro web framework for the web application. [async] adds ASGI integration.
-Flask[async]>=2.0.0
-# rich: Library for rich text and beautiful formatting in the terminal (used by CLI script).
-rich>=12.0
-# uvicorn: ASGI server used to run the Flask/ASGI application.
-uvicorn>=0.17.0
-# asgiref: Provides ASGI utilities, including the WSGI-to-ASGI adapter.
-asgiref>=3.8.0
+# tqdm: progress bars for the CLI script.
+tqdm>=4.66.0
+# rich: formatted tables for the CLI script.
+rich>=13.0
+# FastAPI: modern async web framework (replaces Flask + WsgiToAsgi shim).
+fastapi>=0.110.0
+# Uvicorn: ASGI server.
+uvicorn[standard]>=0.27.0
+# Pydantic: request validation (FastAPI dependency, pinned for clarity).
+pydantic>=2.6
+# uvloop: drop-in faster asyncio event loop (Unix). Used by both the FastAPI
+# server (via uvicorn[standard]) and the CLI script. Skipped on Windows.
+uvloop>=0.19; sys_platform != 'win32'
+# aiodns: optional pure-async DNS resolver (libcares wrapper). Used when the
+# user selects "Direct DNS" mode to bypass local DNS rules and query public
+# servers directly. Required for the diagnostic firewall-vs-truly-down split.
+aiodns>=3.1.0
