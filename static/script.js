@@ -5,6 +5,7 @@ const $ = (id) => document.getElementById(id);
 // DOM
 const checkBtn = $('check-btn');
 const cancelBtn = $('cancel-btn');
+const newScanBtn = $('new-scan-btn');
 const buttonTextSpan = checkBtn.querySelector('.button-text');
 const inputEl = $('domains-input');
 const inputMetaText = $('input-meta-text');
@@ -858,6 +859,63 @@ function formatDuration(sec) {
   return `${m}m ${s}s`;
 }
 
+function resetStatsDisplay() {
+  $('stat-total-value').textContent = '0';
+  $('stat-checked-value').textContent = '0';
+  $('stat-checked-percent').textContent = '0%';
+  $('stat-online-value').textContent = '0';
+  $('stat-online-percent').textContent = '0%';
+  $('stat-failed-value').textContent = '0';
+  $('stat-failed-percent').textContent = '0%';
+  $('stat-elapsed-value').textContent = '0.0s';
+  $('stat-speed-value').textContent = '0.0';
+  $('stat-eta-value').textContent = '-';
+}
+
+function resetDashboardState() {
+  closeDetailModal();
+  currentResults = [];
+  parsedDomains = [];
+  currentRunTotal = 0;
+  currentRunMeta = {
+    total: 0,
+    timeout: Number(timeoutInput.value) || 5,
+    workers: Number(workersInput.value) || 100,
+    dnsMode: dnsModeInput.value || 'system',
+    startedAt: null,
+  };
+  runStartTime = null;
+  speedSamples.length = 0;
+  categoryFilter = null;
+  searchQuery = '';
+  sortKey = null;
+  sortDir = 1;
+
+  resultsSearch.value = '';
+  resultsTbody.innerHTML = '';
+  lastRenderCount = 0;
+  resultsContainer.classList.add('hidden');
+  resultsEmpty.classList.remove('hidden');
+  resultsCount.textContent = 'No Results Yet';
+
+  progressBarWrap.classList.remove('shimmer');
+  progressBarWrap.innerHTML = '';
+  renderSparkline();
+
+  failureReasonsPanel.classList.add('hidden');
+  failureReasonsList.innerHTML = '';
+  activeFilterPills.innerHTML = '';
+  postRunActions.classList.add('hidden');
+  downloadButtonsContainer.classList.add('hidden');
+
+  terminal.classList.remove('active');
+  logsContainer.innerHTML = '';
+  logStatus.textContent = 'Idle';
+
+  resetStatsDisplay();
+  document.title = ORIGINAL_TITLE;
+}
+
 // ---------- Run flow ----------
 async function startRun() {
   if (isRunning) return;
@@ -896,6 +954,7 @@ async function startRun() {
   updateFilterPills();
 
   checkBtn.disabled = true;
+  newScanBtn.disabled = true;
   buttonTextSpan.innerHTML = '<span class="btn-shine">Checking…</span>';
   cancelBtn.classList.remove('hidden');
 
@@ -1077,6 +1136,7 @@ async function startRun() {
     if (sparkTimer) { clearInterval(sparkTimer); sparkTimer = null; }
     progressBarWrap.classList.remove('shimmer');
     checkBtn.disabled = false;
+    newScanBtn.disabled = false;
     buttonTextSpan.innerHTML = 'Check Domains';
     cancelBtn.classList.add('hidden');
     terminal.classList.remove('active');
@@ -1330,6 +1390,33 @@ inputEl.addEventListener('input', debouncedSave);
 timeoutInput.addEventListener('change', debouncedSave);
 workersInput.addEventListener('change', debouncedSave);
 dnsModeInput.addEventListener('change', debouncedSave);
+
+function clearPersistedScanState() {
+  clearTimeout(saveTimer);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      input: '',
+      timeout: timeoutInput.value,
+      workers: workersInput.value,
+      dnsMode: dnsModeInput.value,
+    }));
+  } catch { /* ignore quota / privacy errors */ }
+  try {
+    localStorage.removeItem(RESULTS_KEY);
+  } catch { /* ignore quota / privacy errors */ }
+}
+
+function startFreshScan() {
+  if (isRunning) return;
+  clearPersistedScanState();
+  inputEl.value = '';
+  updateInputMeta();
+  resetDashboardState();
+  inputEl.focus();
+  showToast('fresh scan ready', true);
+}
+
+newScanBtn.addEventListener('click', startFreshScan);
 
 // ---------- Last-run results persistence ----------
 function saveLastRun(total) {
